@@ -1,3 +1,7 @@
 matplotlib
 Pillow
 openpyxl
+streamlit
+pandas
+numpy
+plotly
