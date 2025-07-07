@@ -21,6 +21,10 @@ def load_data():
     """Load data from Excel file, create sample data if file doesn't exist"""
     if os.path.exists(EXCEL_FILE):
         df = pd.read_excel(EXCEL_FILE)
+
+        df['Date'] = pd.to_datetime(df['Date'], format='mixed', dayfirst=False)
+        df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
+        
         return df
 
 def save_data(df):
