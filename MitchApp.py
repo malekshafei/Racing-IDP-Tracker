@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # File path for the Excel workbook
-EXCEL_FILE = "/Users/malekshafei/Desktop/Louisville/MitchIDPs.xlsx"
+EXCEL_FILE = "MitchIDPs.xlsx"
 
 def load_data():
     """Load data from Excel file, create sample data if file doesn't exist"""
