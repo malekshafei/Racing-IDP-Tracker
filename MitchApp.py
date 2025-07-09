@@ -256,7 +256,7 @@ def main():
     st.sidebar.title("Navigation")
     
     # Get list of players for individual pages
-    players = (df2["Player"].tolist()) if not df.empty else []
+    players = (df2["Player"].tolist()) if not df2.empty else []
     
     # Navigation options
     nav_options = ["Overview", "Add New Entry", "Remove Entry", "Analytics"] + [f"👤  {player}" for player in players]
@@ -287,7 +287,7 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("Start Date", 
-                                     value=datetime.now() - timedelta(days=30))
+                                     value="2025-06-01 18:08:40.219182")
         with col2:
             end_date = st.date_input("End Date", 
                                    value=datetime.now())
