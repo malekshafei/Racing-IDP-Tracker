@@ -9,22 +9,25 @@ import os
 
 # Set page config
 st.set_page_config(
-    page_title="Racing IDP Tracker",
+    page_title="Racing IDP Tracker", 
     #page_icon="⚽",
     layout="wide"
 )
 
 # File path for the Excel workbook
 EXCEL_FILE = "MitchIDPs.xlsx"
+df2 = pd.read_excel(EXCEL_FILE, sheet_name = 'Player Bios')
+
 
 def load_data():
     """Load data from Excel file, create sample data if file doesn't exist"""
     if os.path.exists(EXCEL_FILE):
-        df = pd.read_excel(EXCEL_FILE)
+        df = pd.read_excel(EXCEL_FILE, sheet_name = 'Sheet1')
 
-        df['Date'] = pd.to_datetime(df['Date'], format='mixed', dayfirst=False)
+        df['Date'] = pd.to_datetime(df['Date'], format='%Y.%m.%d', dayfirst=False)
         df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
         
+
         return df
 
 def save_data(df):
@@ -64,58 +67,10 @@ def remove_entry(df, index_to_remove):
     df = df.drop(index=index_to_remove).reset_index(drop=True)
     return save_data(df)
 
-def create_calendar_heatmap(df_player):
-    """Create a calendar heatmap showing training sessions by day"""
-    # Convert Date to datetime
-    df_player['Date'] = pd.to_datetime(df_player['Date'])
-    
-    # Count sessions per day
-    daily_sessions = df_player.groupby(df_player['Date'].dt.date).size().reset_index()
-    daily_sessions.columns = ['Date', 'Sessions']
-    
-    # Create a complete date range for the last 3 months
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=90)
-    
-    # Create all dates in range
-    all_dates = pd.date_range(start=start_date, end=end_date, freq='D')
-    df_calendar = pd.DataFrame({'Date': all_dates.date})
-    
-    # Merge with session counts
-    df_calendar = df_calendar.merge(daily_sessions, on='Date', how='left')
-    df_calendar['Sessions'] = df_calendar['Sessions'].fillna(0)
-    
-    # Add calendar information
-    df_calendar['Date'] = pd.to_datetime(df_calendar['Date'])
-    df_calendar['Day'] = df_calendar['Date'].dt.day
-    df_calendar['Month'] = df_calendar['Date'].dt.month
-    df_calendar['Year'] = df_calendar['Date'].dt.year
-    df_calendar['Weekday'] = df_calendar['Date'].dt.dayofweek
-    df_calendar['Week'] = df_calendar['Date'].dt.isocalendar().week
-    
-    # Create heatmap
-    fig = px.density_heatmap(
-        df_calendar,
-        x='Week',
-        y='Weekday',
-        z='Sessions',
-        title='Training Sessions Calendar (Last 3 Months)',
-        labels={'Sessions': 'Sessions per Day', 'Weekday': 'Day of Week', 'Week': 'Week of Year'},
-        color_continuous_scale='Blues'
-    )
-    
-    # Update y-axis to show day names
-    fig.update_yaxes(
-        tickmode='array',
-        tickvals=list(range(7)),
-        ticktext=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    )
-    
-    return fig
 
 def create_training_pie_chart(df_player):
     """Create a pie chart showing training type breakdown"""
-    type_counts = df_player['Type'].value_counts()
+    type_counts = df_player['Detail'].value_counts()
     
     fig = px.pie(
         values=type_counts.values,
@@ -127,80 +82,162 @@ def create_training_pie_chart(df_player):
 
 def display_player_page(player_name, df):
     """Display individual player's training page"""
-    st.title(f"🏃‍♂️ {player_name}'s Training Profile")
     
-    # Filter data for selected player
-    df_player = df[df['Player'] == player_name].copy()
-    df_player['Date'] = pd.to_datetime(df_player['Date'])
     
-    if df_player.empty:
-        st.warning(f"No training data found for {player_name}")
-        return
+
     
-    # Overview metrics
-    col1, col2, col3, col4 = st.columns(4)
+    raw_player_name = player_name.strip()
+    print("")
+    print(raw_player_name)
+    print("")
+    player_row = df2[df2['Player'] == raw_player_name].iloc[0]
+    # player_row = df2.loc[df2['Player'] == player_name]
+
+    st.title(f"#{player_row['Kit #']} {player_name}")
+    # player_img_path = f'/Users/malekshafei/Downloads/Racing PNGs/{raw_player_name}.png'
+    # st.image(player_img_path, width=300)
+    st.title(f"📕  Bio")
+
+    col1, col2, col3 = st.columns([0.45,0.45,0.8 ])
+    
+
+    from datetime import datetime
+
+    def calculate_age(dob_str):
+        dob_1 = datetime.strptime(str(dob_str), "%Y.%m.%d")
+        today = datetime.today()
+        age = (today - dob_1).days / 365.25
+        return round(age, 1)
+
+    dob = player_row['DOB']
     
     with col1:
-        st.metric("Total Sessions", len(df_player))
+        st.metric("Age", calculate_age(dob))
+        
+    with col2:
+        st.metric("DOB", dob)  
+        
+    with col3: 
+        st.metric("From", player_row['From'])
+        
+
+    col1, col2, col3, col4 = st.columns([0.45,0.15,0.3,0.8 ])
+
+    with col1:
+        if pd.isna(player_row['Secondary Position']): pos_string = f"{player_row['Primary Position']}"
+        else: pos_string = f"{player_row['Primary Position']} ({player_row['Secondary Position']})"
+        st.metric("Primary Position (Secondary)", pos_string)
+        
     
     with col2:
-        recent_sessions = len(df_player[df_player['Date'] >= (datetime.now() - timedelta(days=30))])
-        st.metric("Sessions (Last 30 Days)", recent_sessions)
-    
+        st.metric("Foot", player_row['Foot'])
+        
     with col3:
-        unique_types = df_player['Type'].nunique()
-        st.metric("Training Types", unique_types)
+        st.metric("Height", player_row['Height'])
+
     
+
     with col4:
-        last_session = df_player['Date'].max().strftime('%Y-%m-%d')
-        st.metric("Last Session", last_session)
+        
+        
+        st.metric("Joined Club", player_row['Joined Club']) 
     
-    # Charts row
-    col1, col2 = st.columns(2)
+    st.title(f"🎯 Goals")
     
+    col1, col2 = st.columns([0.5,0.5])
     with col1:
-        # Pie chart for training types
-        pie_fig = create_training_pie_chart(df_player)
-        st.plotly_chart(pie_fig, use_container_width=True)
-    
+        st.write(f"Short Term Goals")
+        st.write(f"1. {player_row['Short Term #1']}")
+        st.write(f"2. {player_row['Short Term #2']}")
+        st.write(f"3. {player_row['Short Term #3']}")
+
     with col2:
-        # Calendar heatmap
-        calendar_fig = create_calendar_heatmap(df_player)
-        st.plotly_chart(calendar_fig, use_container_width=True)
+        st.write(f"Long Term Goals")
+        st.write(f"1. {player_row['Long Term #1']}")
+        st.write(f"2. {player_row['Long Term #2']}")
+        st.write(f"3. {player_row['Long Term #3']}")
+
+
+
+    st.title(f"🏃‍♂️ Training Profile")
     
-    # Recent sessions table
-    st.subheader("Recent Training Sessions")
     
-    # Date range filter
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input("Start Date", 
-                                 value=datetime.now() - timedelta(days=30),
-                                 key=f"start_{player_name}")
-    with col2:
-        end_date = st.date_input("End Date", 
-                               value=datetime.now(),
-                               key=f"end_{player_name}")
+
+    # Filter data for selected player
+    df_player = df[df['Player'] == raw_player_name].copy()
     
-    # Filter by date range
-    df_filtered = df_player[
-        (df_player['Date'] >= pd.to_datetime(start_date)) &
-        (df_player['Date'] <= pd.to_datetime(end_date))
-    ]
-    
-    # Display sessions table
-    if not df_filtered.empty:
-        display_df = df_filtered.copy()
-        display_df['Date'] = display_df['Date'].dt.strftime('%Y-%m-%d')
-        display_df = display_df.sort_values('Date', ascending=False)
-        st.dataframe(display_df[['Date', 'Type', 'Detail', 'Coach', 'Notes']], 
-                    use_container_width=True, height=400)
-    else:
-        st.info("No sessions found for the selected date range.")
+    if len(df_player) != 0:
+        print('!!')
+        df_player['Date'] = pd.to_datetime(df_player['Date'])
+        
+        if df_player.empty:
+            st.warning(f"No training data found for {player_name}")
+            return
+        
+        # Overview metrics
+        col1, col2, col3, col4 = st.columns(4) 
+        
+        with col1:
+            st.metric("Total Sessions", len(df_player))
+        
+        with col2:
+            recent_sessions = len(df_player[df_player['Date'] >= (datetime.now() - timedelta(days=30))])
+            st.metric("Sessions (Last 30 Days)", recent_sessions)
+        
+        with col3:
+            unique_types = df_player['Detail'].nunique() 
+            st.metric("Areas Covered", unique_types)
+        
+        with col4:
+            last_session = df_player['Date'].max().strftime('%Y-%m-%d')
+            st.metric("Last Session", last_session)
+        
+        # Charts row
+        col1, col2 = st.columns([0.35,0.65])
+        
+        with col1:
+            # Pie chart for training types
+            st.subheader("Areas Covered")
+            pie_fig = create_training_pie_chart(df_player)
+            st.plotly_chart(pie_fig, use_container_width=True)
+        
+        with col2:
+            # Calendar heatmap
+            
+        
+        # Recent sessions table
+            st.subheader("All Sessions")
+            
+            # Date range filter
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("Start Date", 
+                                        value="2025-06-01 18:08:40.219182",
+                                        key=f"start_{player_name}")
+            
+            with col2:
+                end_date = st.date_input("End Date", 
+                                    value=datetime.now(),
+                                    key=f"end_{player_name}")
+            
+            # Filter by date range
+            df_filtered = df_player[
+                (df_player['Date'] >= pd.to_datetime(start_date)) &
+                (df_player['Date'] <= pd.to_datetime(end_date))
+            ]
+            
+            # Display sessions table
+            if not df_filtered.empty:
+                display_df = df_filtered.copy()
+                display_df['Date'] = display_df['Date'].dt.strftime('%Y-%m-%d')
+                display_df = display_df.sort_values('Date', ascending=False)
+                st.dataframe(display_df[['Date', 'Type', 'Detail', 'Coach', 'Notes']], 
+                            use_container_width=True, height=400)
+            else:
+                st.info("No sessions found for the selected date range.")
 
 def main():
-    st.title("Racing IDP Tracker")
-    st.markdown("Track and monitor player training sessions")
+    
     
     # Initialize session state for success messages
     if 'show_success' not in st.session_state:
@@ -219,10 +256,10 @@ def main():
     st.sidebar.title("Navigation")
     
     # Get list of players for individual pages
-    players = sorted(df["Player"].unique().tolist()) if not df.empty else []
+    players = (df2["Player"].tolist()) if not df.empty else []
     
     # Navigation options
-    nav_options = ["Overview", "Add New Entry", "Remove Entry", "Analytics"] + [f"👤 {player}" for player in players]
+    nav_options = ["Overview", "Add New Entry", "Remove Entry", "Analytics"] + [f"👤  {player}" for player in players]
     page = st.sidebar.selectbox("Select Page", nav_options)
     
     # Show success/error messages at the top
@@ -235,6 +272,11 @@ def main():
         st.session_state.show_error = False
     
     if page == "Overview":
+       
+        st.title("Racing IDP Tracker")
+        
+        st.markdown("Track and monitor player training sessions")
+
         st.header("Training Sessions Overview")
         
         # Player selection
@@ -288,7 +330,7 @@ def main():
         st.header("Add New Training Entry")
         
         # Get existing data for dropdowns
-        existing_players = sorted(df["Player"].unique().tolist()) if not df.empty else []
+        existing_players = sorted(df2["Player"].unique().tolist()) if not df.empty else []
         existing_types = sorted(df["Type"].unique().tolist()) if not df.empty else []
         existing_details = sorted(df["Detail"].unique().tolist()) if not df.empty else []
         existing_coaches = sorted(df["Coach"].unique().tolist()) if not df.empty else []
@@ -455,23 +497,43 @@ def main():
         df_analysis = df.copy()
         df_analysis['Date'] = pd.to_datetime(df_analysis['Date'])
         
-        # Recent data (last 30 days)
-        recent_cutoff = datetime.now() - timedelta(days=30)
-        df_recent = df_analysis[df_analysis['Date'] >= recent_cutoff]
+        filter_days = st.selectbox("Show entries from", 
+                                         ["All time","Last 7 days", "Last 30 days", "Last 90 days"],
+                                         key="remove_date_filter")
+            
+        # Apply filters
+        df_filtered = df.copy()
+        df_filtered['Date'] = pd.to_datetime(df_filtered['Date'])
         
+        # Date filter
+        if filter_days == "Last 7 days":
+            cutoff = datetime.now() - timedelta(days=7)
+        elif filter_days == "Last 30 days":
+            cutoff = datetime.now() - timedelta(days=30)
+
+        elif filter_days == "Last 90 days":
+            cutoff = datetime.now() - timedelta(days=90)
+        else:
+            cutoff = datetime.now() - timedelta(days=1000)
+            
+        # Recent data (last 30 days)
+        #recent_cutoff = datetime.now() - timedelta(days=30)
+        df_recent = df_analysis[df_analysis['Date'] >= cutoff]
+        
+
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Sessions by Player (Last 30 Days)")
+            st.subheader("Sessions by Player")
             if not df_recent.empty:
                 player_stats = df_recent.groupby("Player").size().reset_index(name='Sessions')
                 player_stats = player_stats.sort_values('Sessions', ascending=False)
                 st.dataframe(player_stats, use_container_width=True)
         
         with col2:
-            st.subheader("Training Types Distribution")
+            st.subheader("Training Details Distribution")
             if not df_recent.empty:
-                type_stats = df_recent.groupby("Type").size().reset_index(name='Sessions')
+                type_stats = df_recent.groupby("Detail").size().reset_index(name='Sessions')
                 type_stats = type_stats.sort_values('Sessions', ascending=False)
                 st.dataframe(type_stats, use_container_width=True)
         
