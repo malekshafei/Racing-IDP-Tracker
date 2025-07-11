@@ -193,7 +193,7 @@ def display_player_page(player_name, df):
     
     
     st.title(f"📈 Season Overview")
-    game_overview = pd.read_parquet("/Users/malekshafei/Desktop/Louisville/Racing Mins.parquet")
+    game_overview = pd.read_parquet("Racing Mins.parquet")
     
     poss_matches = game_overview['match_id'].nunique()
     max_mins_per_match = game_overview.groupby('match_id')['Minutes'].max()
@@ -215,7 +215,7 @@ def display_player_page(player_name, df):
 
     if player_mins > 100:
         sb_player_id = player_id_matching[raw_player_name]
-        season_data = pd.read_parquet("/Users/malekshafei/Desktop/Louisville/NWSL2025-AppPlayerSeasonPercentiles.parquet")
+        season_data = pd.read_parquet("NWSL2025-AppPlayerSeasonPercentiles.parquet")
         season_data.drop(['Matches Played','pctDistance','pctRunning Distance','pctHSR Distance','pctCount HSR', 'pctSprinting Distance', 'pctSprint Count', 'pctHI Distance', 'pctHI Count', 'pctMedium Accels','pctHigh Accels','pctMedium Decels', 'pctHigh Decels', 'pctWalking to HSR Count', 'pctWalking to Sprint Count', 'pctMatches Played', 'pctTop Speed', 'pctTime to Sprint', 'pctTime to HSR', 'pctWalking Distance', 'pct% of Distance Walking', 'pct% of Distance HI', 'pct% of Distance Sprinting', 'pct% of HI Distance Sprinting','Speed', 'Intensity', 'Explosiveness','Agility'],axis=1)
 
         # pos_map = {
