@@ -24,7 +24,7 @@ def load_data():
     if os.path.exists(EXCEL_FILE):
         df = pd.read_excel(EXCEL_FILE, sheet_name = 'Sheet1')
 
-        df['Date'] = pd.to_datetime(df['Date'], format='%Y.%m.%d', dayfirst=False)
+        df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', dayfirst=False)
         df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
         
 
