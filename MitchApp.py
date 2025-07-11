@@ -33,23 +33,36 @@ def load_data():
 def save_data(df):
     """Save data to Excel file"""
     try:
-        df.to_excel(EXCEL_FILE, index=False)
+        with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Sheet1', index=False)
+            df2.to_excel(writer, sheet_name='Player Bios', index=False)
+        
+            #df.to_excel(EXCEL_FILE, index=False)
         return True
     except Exception as e:
         st.error(f"Error saving data: {e}")
         return False
 
-def add_training_entry(player_name, training_type, training_detail, training_date, coach_name, notes):
+def add_training_entry(player_name, training_type, training_detail, training_date, coach_name, notes, session_id=None):
     """Add a new training entry to the data - returns True/False for success"""
     df = load_data()
     
+    if session_id is None:
+        if 'Session_ID' in df.columns and not df.empty:
+            # Get the highest existing session ID and add 1
+            session_id = df['Session_ID'].max() + 1
+        else:
+            # First entry or no Session_ID column exists
+            session_id = 1
+
     new_entry = {
         "Player": player_name,
         "Type": training_type,
         "Detail": training_detail,
         "Date": training_date.strftime("%Y-%m-%d"),
         "Coach": coach_name,
-        "Notes": notes
+        "Notes": notes,
+        "Session_ID": session_id
     }
     
     # Add new entry to DataFrame
@@ -62,20 +75,24 @@ def add_training_entry(player_name, training_type, training_detail, training_dat
     # Save to Excel and return result
     return save_data(df)
 
+
+
+
 def remove_entry(df, index_to_remove):
     """Remove an entry from the dataframe"""
     df = df.drop(index=index_to_remove).reset_index(drop=True)
     return save_data(df)
 
 
-def create_training_pie_chart(df_player):
+def create_training_pie_chart(df_player, col, title_text):
     """Create a pie chart showing training type breakdown"""
-    type_counts = df_player['Detail'].value_counts()
+    type_counts = df_player[col].value_counts()
     
     fig = px.pie(
         values=type_counts.values,
         names=type_counts.index,
-        title='Training Types Distribution'
+        title = title_text
+        #title='Training Types Distribution'
     )
     
     return fig
@@ -142,20 +159,26 @@ def display_player_page(player_name, df):
         
         st.metric("Joined Club", player_row['Joined Club']) 
     
-    st.title(f"🎯 Goals")
-    
     col1, col2 = st.columns([0.5,0.5])
-    with col1:
-        st.write(f"Short Term Goals")
-        st.write(f"1. {player_row['Short Term #1']}")
-        st.write(f"2. {player_row['Short Term #2']}")
-        st.write(f"3. {player_row['Short Term #3']}")
 
+
+    with col1:
+        st.title(f"📈 Match Performance")
     with col2:
-        st.write(f"Long Term Goals")
-        st.write(f"1. {player_row['Long Term #1']}")
-        st.write(f"2. {player_row['Long Term #2']}")
-        st.write(f"3. {player_row['Long Term #3']}")
+        st.title(f"🎯 Goals")
+        
+        col1, col2 = st.columns([0.5,0.5])
+        with col1:
+            st.write(f"Short Term Goals")
+            st.write(f"1. {player_row['Short Term #1']}")
+            st.write(f"2. {player_row['Short Term #2']}")
+            st.write(f"3. {player_row['Short Term #3']}")
+
+        with col2:
+            st.write(f"Long Term Goals")
+            st.write(f"1. {player_row['Long Term #1']}")
+            st.write(f"2. {player_row['Long Term #2']}")
+            st.write(f"3. {player_row['Long Term #3']}")
 
 
 
@@ -198,7 +221,10 @@ def display_player_page(player_name, df):
         with col1:
             # Pie chart for training types
             st.subheader("Areas Covered")
-            pie_fig = create_training_pie_chart(df_player)
+            pie_fig = create_training_pie_chart(df_player, 'Type', 'Training Types')
+            st.plotly_chart(pie_fig, use_container_width=True)
+
+            pie_fig = create_training_pie_chart(df_player, 'Detail', 'Areas Covered')
             st.plotly_chart(pie_fig, use_container_width=True)
         
         with col2:
@@ -211,9 +237,18 @@ def display_player_page(player_name, df):
             # Date range filter
             col1, col2 = st.columns(2)
             with col1:
+                if not df_player.empty:
+                    earliest_date = pd.to_datetime(df['Date']).min().date()
+                else:
+                    earliest_date = datetime.now().date() - timedelta(days=30)
+
                 start_date = st.date_input("Start Date", 
-                                        value="2025-06-01 18:08:40.219182",
+                                        value=earliest_date,
                                         key=f"start_{player_name}")
+
+                # start_date = st.date_input("Start Date", 
+                #                         value=df_player['Date'].min().date() if not df_player.empty else datetime.now().date() - timedelta(days=30),
+                #                         key=f"start_{player_name}")
             
             with col2:
                 end_date = st.date_input("End Date", 
@@ -283,17 +318,24 @@ def main():
         players_filter = ["All Players"] + players
         selected_player = st.selectbox("Select Player", players_filter)
         
+        df_filtered = df.copy()
         # Date range filter
         col1, col2 = st.columns(2)
         with col1:
+            if not df_filtered.empty:
+                earliest_date = pd.to_datetime(df_filtered['Date']).min().date()
+            else:
+                earliest_date = datetime.now().date() - timedelta(days=30)
+
             start_date = st.date_input("Start Date", 
-                                     value="2025-06-01 18:08:40.219182")
+                                    value=earliest_date)
+                                    
         with col2:
             end_date = st.date_input("End Date", 
                                    value=datetime.now())
         
         # Filter data
-        df_filtered = df.copy()
+        
         df_filtered['Date'] = pd.to_datetime(df_filtered['Date'])
         
         # Apply filters
@@ -307,15 +349,15 @@ def main():
         
         # Display metrics
         if not df_filtered.empty:
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Total Sessions", len(df_filtered))
+                st.metric("Total Sessions", df_filtered['Session_ID'].nunique())
             with col2:
                 st.metric("Players", df_filtered["Player"].nunique())
             with col3:
-                st.metric("Training Types", df_filtered["Type"].nunique())
-            with col4:
-                st.metric("Coaches", df_filtered["Coach"].nunique())
+                spw = round(df_filtered['Session_ID'].nunique() / ((end_date - start_date).days / 7),1)
+                st.metric("Sessions per Week", spw)
+            
         
         # Display data table
         st.subheader("Training Sessions")
@@ -345,10 +387,18 @@ def main():
             # Player selection
             player_option = st.radio("Player Selection", ["Select Existing", "Add New Player"])
             
-            if player_option == "Select Existing" and existing_players:
-                player_name = st.selectbox("Select Player", existing_players)
+            add_multiple = st.checkbox("Add multiple players (group session)")
+
+            if add_multiple:
+                if existing_players:
+                    selected_players = st.multiselect("Select Players for Group Session", existing_players)
+                    player_name = selected_players
+                else: player_name = []
             else:
-                player_name = st.text_input("Enter Player Name")
+                if player_option == "Select Existing" and existing_players:
+                    player_name = st.selectbox("Select Player", existing_players)
+                else:
+                    player_name = st.text_input("Enter Player Name")
             
             # Training type
             type_option = st.radio("Training Type", ["Select from List", "Enter Custom"])
@@ -378,25 +428,63 @@ def main():
         
         # Submit button
         if st.button("Add Training Entry", type="primary"):
-            if player_name and player_name.strip() and training_type and training_type.strip():
-                success = add_training_entry(
-                    player_name.strip(), 
-                    training_type.strip(), 
-                    training_detail.strip() if training_detail else "", 
-                    training_date, 
-                    coach_name.strip() if coach_name else "", 
-                    notes.strip()
-                )
-                if success:
-                    st.session_state.show_success = True
-                    st.session_state.success_message = "Entry successfully added!"
-                    st.rerun()
+            if add_multiple:
+                if selected_players and training_type and training_type.strip():
+
+                    df_temp = load_data()
+                    if 'Session_ID' in df_temp.columns and not df_temp.empty:
+                        next_session_id = df_temp['Session_ID'].max() + 1
+                    else:
+                        next_session_id = 1
+
+                    success_count = 0
+                    for player in selected_players:
+                        success = add_training_entry(
+                            player.strip(), 
+                            training_type.strip(), 
+                            training_detail.strip() if training_detail else "", 
+                            training_date, 
+                            coach_name.strip() if coach_name else "", 
+                            notes.strip(),
+                            session_id=next_session_id
+                        )
+                        if success:
+                            success_count += 1
+                    
+                    if success_count == len(selected_players):
+                        print('hi')
+                        st.session_state.show_success = True
+                        st.session_state.success_message = f"Group session added for {success_count} players!"
+                        st.rerun()
+                    else:
+                        st.session_state.show_error = True
+                        st.session_state.error_message = f"Only {success_count}/{len(selected_players)} entries were saved successfully!"
+                        st.rerun() 
                 else:
-                    st.session_state.show_error = True
-                    st.session_state.error_message = "Failed to save entry!"
-                    st.rerun()
+                    st.error("Please select players and fill in training type for group session")
+
             else:
-                st.error("Please fill in all required fields (Player and Training Type)")
+
+            
+                if player_name and player_name.strip() and training_type and training_type.strip():
+                    success = add_training_entry(
+                        player_name.strip(), 
+                        training_type.strip(), 
+                        training_detail.strip() if training_detail else "", 
+                        training_date, 
+                        coach_name.strip() if coach_name else "", 
+                        notes.strip()
+                    )
+                    if success:
+                        st.session_state.show_success = True
+                        st.session_state.success_message = "Entry successfully added!"
+                        st.rerun()
+                    else:
+                        st.session_state.show_error = True
+                        st.session_state.error_message = "Failed to save entry!"
+                        st.rerun()
+                else:
+                    st.error("Please fill in all required fields (Player and Training Type)")
 
     elif page == "Remove Entry":
         st.header("Remove Training Entry")
