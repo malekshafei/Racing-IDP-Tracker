@@ -14,6 +14,38 @@ st.set_page_config(
     layout="wide"
 )
 
+player_id_matching = {
+   
+    'Courtney Petersen': 49057,
+    'Lauren Milliet': 33367,
+
+    
+    'Arin Wright': 4942,
+    'Ellie Jean': 62960,
+    'Angela Baron': 403272,
+    'Elli Pikkujamsa': 225161,
+    'Allie George': 451020,
+
+    'Taylor Flint': 428578,
+    'Avery Kalitta': 454905,
+    'Marisa DiGrande': 30524,
+    'Ary Borges': 389488,
+    "Katie O'Kane": 469677,
+    "Jordan Baggett": 30652,
+
+    
+    'Ella Hase': 453203,
+
+    'Janine Sonis': 4992,
+    'Emma Sears': 428576,
+    'Sarah Weber': 454724,
+    'Kayla Fischer': 389487,
+    'Savannah DeMelo': 218506,
+    'Uchenna Kanu': 25461
+
+}
+
+
 # File path for the Excel workbook
 EXCEL_FILE = "MitchIDPs.xlsx"
 df2 = pd.read_excel(EXCEL_FILE, sheet_name = 'Player Bios')
@@ -159,26 +191,421 @@ def display_player_page(player_name, df):
         
         st.metric("Joined Club", player_row['Joined Club']) 
     
+    
+    st.title(f"📈 Season Overview")
+    game_overview = pd.read_parquet("/Users/malekshafei/Desktop/Louisville/Racing Mins.parquet")
+    
+    poss_matches = game_overview['match_id'].nunique()
+    max_mins_per_match = game_overview.groupby('match_id')['Minutes'].max()
+    poss_mins =  max_mins_per_match.sum()
+
+    player_squad_apps = len(game_overview[(game_overview['Player'] == raw_player_name) & (game_overview['In Squad'] == True)])
+    player_starts = len(game_overview[(game_overview['Player'] == raw_player_name) & (game_overview['Started'] == True)])
+    player_came_on = len(game_overview[(game_overview['Player'] == raw_player_name) & (game_overview['Came On'] == True)])
+    player_apps = player_starts + player_came_on
+    player_mins = sum(game_overview[game_overview['Player'] == raw_player_name]['Minutes'])
+    pct_possible_mins = int((player_mins / poss_mins) * 100)
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1: st.metric("Made Squad", f"{player_squad_apps}/{poss_matches}")
+    with col2: st.metric("Played", f"{player_apps}")
+    with col3: st.metric("Started", f"{player_starts}")
+    with col4: st.metric("Minutes", f"{player_mins}")
+    with col5: st.metric("% of Mins", f"{pct_possible_mins}%")
+
+    if player_mins > 100:
+        sb_player_id = player_id_matching[raw_player_name]
+        season_data = pd.read_parquet("/Users/malekshafei/Desktop/Louisville/NWSL2025-AppPlayerSeasonPercentiles.parquet")
+        season_data.drop(['Matches Played','pctDistance','pctRunning Distance','pctHSR Distance','pctCount HSR', 'pctSprinting Distance', 'pctSprint Count', 'pctHI Distance', 'pctHI Count', 'pctMedium Accels','pctHigh Accels','pctMedium Decels', 'pctHigh Decels', 'pctWalking to HSR Count', 'pctWalking to Sprint Count', 'pctMatches Played', 'pctTop Speed', 'pctTime to Sprint', 'pctTime to HSR', 'pctWalking Distance', 'pct% of Distance Walking', 'pct% of Distance HI', 'pct% of Distance Sprinting', 'pct% of HI Distance Sprinting','Speed', 'Intensity', 'Explosiveness','Agility'],axis=1)
+
+        # pos_map = {
+        #     1: 'GK',
+        #     3: 'FB/WB',
+        #     4: 'CB',
+        #     6: 'CM',
+        #     10: 'AM',
+        #     7: 'W',
+        #     9: 'ST'
+
+        # }
+
+        #season_data['Position Group'] = season_data['pos_group'].apply(lambda x: pos_map.get(x, x))
+
+        player_data = season_data[season_data['player_id'] == sb_player_id]
+        #position_minutes = player_data.groupby('Position Group')['Minutes'].sum().to_dict()
+        position_minutes = {k: int(v) for k, v in player_data.groupby('Position Group')['Minutes'].sum().to_dict().items()}
+
+        #position_labels = [f"{position} ({position_minutes[position]} mins)" for position in sorted(player_data['Position Group'].unique())]
+        position_labels = [
+                f"{position} ({position_minutes[position]} mins)" 
+                for position in sorted(player_data['Position Group'].unique(), key=lambda pos: position_minutes[pos], reverse=True)
+        ]
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            positions = st.pills("Select Position(s)", 
+                                position_labels, #sorted(player_data['Position Group'].unique()), 
+                                selection_mode = "multi", default = position_labels[0])
+            
+            positions = [label.split(' ')[0] for label in positions]
+            if positions == []: st.error('Please select at least one position')
+            comp_data = season_data[season_data['Position Group'].isin(positions)].sort_values(by='Minutes',ascending=False)
+            #st.write(positions)
+        with col2:
+            compare = st.radio('Compare with another player?', ["No", "Yes"])
+
+        with col3:
+            if compare == 'Yes': 
+                comp_player_name = st.selectbox('Player', comp_data[comp_data['Player'] != raw_player_name]['Player'].unique())
+            else: comp_player_name = '...'
+        
+        median_mins = np.median(comp_data['Minutes'])
+
+        comp_data = comp_data[(comp_data['player_id'] == sb_player_id) | (comp_data['Player'] == comp_player_name) | (comp_data['Minutes'] > median_mins)]
+        # highlight = comp_data[(comp_data['player_id'] == sb_player_id) | (comp_data['Player'] == comp_player_name)]
+        # #st.write(highlight[['Player', 'pos_group', 'Minutes', 'Top Speed']])
+        special_cols = ['Player', 'pos_group', 'Team', 'Competition', 'Season', 'Minutes', 'Number', 'Foot', 'player_id', 'Position', 'Detailed Position', 'Position Group', 'offline_player_id', 'statsbomb_id']
+        for col in comp_data.columns:
+            if col not in special_cols:#and col not in phys_cols:
+                comp_data[col] = comp_data[col] * comp_data['Minutes']
+
+
+        aggs = {col: 'sum' for col in comp_data.columns if col not in special_cols}
+        aggs['Position Group'] = 'first'
+        aggs['pos_group'] = 'first'
+        aggs['Team'] = 'first'
+        aggs['Competition'] = 'first'
+        aggs['Season'] = 'first'
+        aggs['Minutes'] = 'sum'
+        aggs['Number'] = 'first'
+        aggs['Foot'] = 'first'
+        aggs['player_id'] = 'first'
+        aggs['Position'] = 'first'
+        aggs['Detailed Position'] = 'first'
+        aggs['offline_player_id'] = 'first'
+        aggs['statsbomb_id'] = 'first'
+        
+        
+        phys_cols = [
+                    'Distance','Running Distance', 'HSR Distance', 'Count HSR',
+                    'Sprinting Distance', 'Sprint Count', 'HI Distance', 'HI Count',
+                    'Medium Accels', 'High Accels', 'Medium Decels', 'High Decels',
+                    'Walking to HSR Count', 'Walking to Sprint Count', 
+                    'Top Speed', 'Time to Sprint',
+                    'Time to HSR', 'Walking Distance', '% of Distance Walking',
+                    '% of Distance HI', '% of Distance Sprinting']
+        phys_pct_cols = [
+            'pctDistance',
+                'pctRunning Distance', 'pctHSR Distance',
+            'pctCount HSR', 'pctSprinting Distance', 'pctSprint Count',
+            'pctHI Distance', 'pctHI Count', 'pctMedium Accels', 'pctHigh Accels',
+            'pctMedium Decels', 'pctHigh Decels', 'pctWalking to HSR Count',
+            'pctWalking to Sprint Count', 'pctTop Speed',
+            'pctTime to Sprint', 'pctTime to HSR', 'pctWalking Distance',
+            'pct% of Distance Walking', 'pct% of Distance HI',
+            'pct% of Distance Sprinting', 'pct% of HI Distance Sprinting'
+        ]
+        
+            
+        comp_data = comp_data.groupby('Player').agg(aggs).reset_index()
+        for col in comp_data.columns:
+            if col not in special_cols and col != 'Top Speed':
+                comp_data[col] = comp_data[col] / comp_data['Minutes']    
+                if col not in phys_cols + phys_pct_cols: comp_data[f'pct{col}'] = round(comp_data[col].rank(pct=True) * 100,2)
+                #comp_data[f'pct{col}'].fillna(0)
+        
+        
+        important_metrics = []
+        selected_metrics = []
+
+        comp_data['Shot Stopping'] = (0.05 * comp_data['pctGK Shots on Target Faced']) + (0.1 * comp_data['pctBig Chances Save %']) + (0.7 * comp_data['pctGoals Prevented']) + (0.15 * comp_data['pctGK Save %'])
+        comp_data['Short Distribution'] = (0.15 * comp_data['pctForward Pass %']) + (0.2 * comp_data['pctPressured Pass %']) + (0.65 * comp_data['pctShort Pass %'])
+        comp_data['Long Distribution'] = (0.2 * comp_data['pctProgressive Passes']) + (0.1 * comp_data['pctPasses into Final Third']) +  (0.35 * comp_data['pctLong Passes Completed']) + (0.1 * comp_data['pctPass OBV']) + (0.25 * comp_data['pctLong Pass %'])
+        comp_data['Stepping Out'] = (0.1 * comp_data['pctGK Avg. Distance'])
+        comp_data['Saving Big Chances'] = (0.25 * comp_data['pctBig Chances Faced']) + (0.75 * comp_data['pctBig Chances Save %'] )
+        comp_data['1v1 Saving'] = (1 * comp_data['pctGK 1v1s Save Rate'])
+        
+        comp_data['Chance Creation'] = (0.3 * comp_data['pctxA']) + (0.15 * comp_data['pctKey Passes']) + (0.25 * comp_data['pctBig Chances Created']) + (0.1 * comp_data['pctPass OBV']) + (0.2 * comp_data['pctAssists'])
+        comp_data['Ball Progression'] = (0.2 * comp_data['pctPass OBV']) + (0.15 * comp_data['pctPasses into Final Third']) + (0.25 * comp_data['pctProgressive Carries']) + (0.3 * comp_data['pctProgressive Passes']) + (0.1 * comp_data['pctLong Passes Completed'])
+        comp_data['Ball Retention'] = (0.15 * comp_data['pctForward Pass %']) + (0.55 * comp_data['pctBall Retention %']) + (0.2 * comp_data['pctPressured Pass %']) + (0.1 * comp_data['pctShort Pass %'])
+        comp_data['Verticality'] = (0.25 * comp_data['pct% of Passes Progressive']) + (0.6 * comp_data['pct% of Passes Forward']) + (0.15 * (1- comp_data['pct% of Passes Backward']))
+        comp_data['Carrying'] = (0.25 * comp_data['pctTake Ons']) + (0.1 * comp_data['pctCarries']) + (0.5 * comp_data['pctProgressive Carries']) + (0.15 * comp_data['pctDribble %'])
+        comp_data['Poaching'] = (0.55 * comp_data['pctxG']) + (0.2 * comp_data['pctxG/Shot']) + (0.2 * comp_data['pctBox Receptions']) + (0.05 * comp_data['pctSix Yard Box Receptions'])
+        comp_data['Finishing'] = (0.25 * comp_data['pctGoals per xG']) + (0.15 * comp_data['pctxGOT per xG']) + (0.45 * comp_data['pctGoal Conversion']) + (0.15 * comp_data['pctGoals'])
+        comp_data['Goal Threat'] = (0.3 * comp_data['pctxG']) + (0.3 * comp_data['pctGoals']) + (0.2 * comp_data['pctBox Receptions']) + (0.1 * comp_data['pctGoal Conversion']) + (0.1 * comp_data['pctxGOT per xG'])
+        comp_data['Crossing'] = (0.3 * comp_data['pctCrosses Completed into Box']) + (0.2 * comp_data['pctCross into Box %']) + (0.25 * comp_data['pctCross Shot Assists']) + (0.25 * comp_data['pctCross Assists'])
+        comp_data['Heading'] = (0.7 * comp_data['pctAerial %']) + (0.3 * comp_data['pctAerial Wins'])
+        comp_data['Set Piece Threat'] = (0.75 * comp_data['pctAttacking SP Aerial Wins']) + (0.25 * comp_data['pctAttacking SP Aerial %'])
+
+        # comp_data['Speed'] = (0.4 * comp_data['pctPSV-99']) + (0.45 * comp_data['pctPSV-85']) + (0.15 * comp_data['pctSprinting Distance'])
+        # comp_data['HSR Distance'] = (0.4 * comp_data['pctDistance']) + (0.6 * comp_data['pctHI Running Distance'])
+
+        comp_data['High Pressing'] = (0.25 * comp_data['pctAttacking Half Pressures']) + (0.15 * comp_data['pctAttacking Third Pressures']) + (0.2 * comp_data['pctAttacking Half Pressure Regains']) + (0.1 * comp_data['pctPressure Regains Leading to Shots']) + (0.3 * comp_data['pctAverage Defensive Action Distance'])
+        comp_data['Defending High'] = (0.2 * comp_data['pctAttacking Half Pressures']) + (0.05 * comp_data['pctAttacking Half Pressure Regains']) + (0.75 * comp_data['pctAverage Defensive Action Distance'])
+        comp_data['Tackle Accuracy'] = (0.2 * (100 - comp_data['pctDribbled Past'])) + (0.65 * comp_data['pctTackle %']) + (0.15 * comp_data['pctTackles Won'])
+        comp_data['Defensive Output'] = (0.1 * comp_data['pctBlocks']) + (0.3 * comp_data['pctTackles Won']) + (0.4 * comp_data['pctBall Recoveries']) + (0.2 * comp_data['pctInterceptions'])
+        comp_data['Receiving Forward'] = (0.6 * comp_data['pctFinal Third Receptions']) + (0.15 * comp_data['pctBox Receptions']) + (0.15 * comp_data['pctShots']) + (0.1 * comp_data['pctxG'])
+
+        # for col in comp_data.columns:
+        #     print(col)
+        comp_data['Speed'] = (1 * comp_data['pctTop Speed'])
+        comp_data['Intensity'] = (0.1 * comp_data['pctDistance']) + (0.3 * comp_data['pctRunning Distance']) + (0.2 * comp_data['pctHSR Distance']) + (0.15 * comp_data['pctSprinting Distance']) + (0.15 * comp_data['pctSprint Count']) + (0.1 * comp_data['pct% of Distance HI'])
+        comp_data['Explosiveness'] = (0.3 * comp_data['pctWalking to Sprint Count']) + (0.3 * comp_data['pctWalking to HSR Count']) + (0.2 * (100 - comp_data['pctTime to HSR'])) + (0.2 * (100 - comp_data['pctTime to Sprint']))
+        comp_data['Agility'] = (0.2 * comp_data['pctHigh Decels']) + (0.2 * comp_data['pctHigh Accels']) + (0.3 * comp_data['pctMedium Decels']) + (0.3 * comp_data['pctMedium Accels'])
+
+
+        #highlight = comp_data[(comp_data['player_id'] == sb_player_id) | (comp_data['Player'] == comp_player_name)]
+        #st.write(comp_data[['Player', 'pos_group', 'Minutes', 'Top Speed','pctTop Speed', 'Speed']])
+
+
+        if 'CB' in positions:
+                #print('CB')
+                important_metrics.append(['Speed','Tackle Accuracy', 'Defending High', 'Defensive Output', 'Heading', 'Ball Retention', 'Ball Progression', 'Verticality'])
+                selected_metrics.append(['Top Speed', 'Average Defensive Action Distance', 
+                                         'Tackle %', 'Tackles Won',
+                                         'Interceptions', 'Blocks',
+                                         'Aerial Wins', 'Aerial %',
+                                         'Progressive Passes', 'Passes into Final Third', 
+                                         'Progressive Carries', 'Ball Retention %'])
+        if 'FB/WB' in positions:
+            #print('FB/WB')
+            important_metrics.append(['Crossing','Chance Creation','Receiving Forward','Speed', 'High Pressing', 'Tackle Accuracy', 'Defensive Output',  'Ball Retention', 'Ball Progression', 'Verticality', 'Heading',])
+            selected_metrics.append(['Top Speed', 'HI Distance',
+                                        'Key Passes', 'Big Chances Created',
+                                        'xA', 'Assists',
+                                        'Cross Shot Assists', 'Cross into Box %',
+                                        'Tackle %', 'Tackles Won',
+                                        'Attacking Third Pressures', 'Attacking Half Pressure Regains'
+                                        ])
+        if 'CM' in positions:
+            #print('CM')
+            important_metrics.append(['Tackle Accuracy', 'Defensive Output', 'High Pressing', 'Heading', 'Set Piece Threat', 'Ball Retention', 'Ball Progression', 'Carrying','Receiving Forward','Chance Creation','Speed', 'Intensity', 'Goal Threat', 'Verticality'])
+            selected_metrics.append(['Top Speed', 'HI Distance',
+                                        'xA', 'Assists',
+                                        'xG', 'Goals',
+                                        'Progressive Passes', 'Progressive Carries',
+                                        'Tackle %', 'Ball Recoveries',
+                                        'Attacking Third Pressures', 'Attacking Half Pressure Regains'
+                                        ])
+            
+
+        if 'AM' in positions:
+            #print('AM')
+            important_metrics.append(['Chance Creation', 'Carrying', 'Speed', 'Goal Threat', 'Defensive Output', 'High Pressing', 'Chance Creation', 'Ball Progression', 'Ball Retention', 'Crossing',  'Intensity', 'Poaching', 'Finishing'])
+            selected_metrics.append(['Top Speed', 'HI Distance',
+                                    'Goals', 'xG',
+                                    'Box Receptions', 'Goal Conversion',
+                                    'Assists', 'xA',
+                                    'Progressive Carries', 'Dribble %',
+                                    'Attacking Third Pressures', 'Ball Recoveries'])
+        if 'W' in positions:
+            #print('W')
+            important_metrics.append(['Chance Creation', 'Carrying', 'Speed', 'Goal Threat', 'Defensive Output', 'High Pressing', 'Chance Creation', 'Ball Progression', 'Ball Retention', 'Crossing',  'Intensity', 'Poaching', 'Finishing'])
+            selected_metrics.append(['Top Speed', 'HI Distance',
+                                    'Goals', 'xG',
+                                    'Box Receptions', 'Goal Conversion',
+                                    'Assists', 'xA',
+                                    'Progressive Carries', 'Dribble %',
+                                    'Attacking Third Pressures', 'Ball Recoveries'])
+            
+        if 'ST' in positions:
+            #print('ST')
+            important_metrics.append(['Finishing', 'Poaching', 'High Pressing', 'Speed', 'Intensity', 'Defensive Output', 'Chance Creation', 'Ball Retention', 'Carrying',  'Goal Threat', 'Heading', 'Set Piece Threat'])
+            selected_metrics.append(['Goals', 'xG',
+                                    'Shots', 'Box Receptions',
+                                    'Goal Conversion', 'Big Chance Conversion',
+                                    'Key Passes', 'Ball Retention %',
+                                    'Attacking Third Pressures', 'Ball Recoveries',
+                                    'Top Speed', 'HI Distance'])
+
+        #important_metrics = list(set(item for sublist in important_metrics for item in sublist))
+
+        all_ratings = ['Speed', 'Intensity', 'Explosivness', 'Agility', 'Defensive Output', 'Defending High', 'High Pressing', 'Tackle Accuracy', 'Heading', 'Ball Retention', 'Ball Progression', 'Verticality', 'Carrying', 'Chance Creation', 'Crossing', 'Poaching', 'Finishing', 'Goal Threat', 'Receiving Forward', 'Set Piece Threat','Shot Stopping', 'Short Distribution', 'Long Distribution', 'Stepping Out', 'Saving Big Chances', '1v1 Saving']
+        
+
+        important_ratings_unique = []
+        seen = set()
+        for sublist in important_metrics:
+            for item in sublist:
+                if item not in seen:
+                    seen.add(item)
+                    important_ratings_unique.append(item)
+
+        important_ratings = important_ratings_unique
+
+        #st.write(important_ratings)
+
+        import plotly.graph_objects as go
+
+        def create_comparison_radar(comp_data, player_name, important_ratings, compare=False, comp_player_name=None):
+            """Create radar chart for player comparison"""
+            
+            # Get player data
+            player_data = comp_data[comp_data['player_id'] == sb_player_id].iloc[0]
+            player_mins = player_data.get('Minutes', 0)
+            
+            # Get player ratings (assuming they're 0-100 scale)
+            player_ratings = [player_data[rating] for rating in important_ratings]
+            
+            # Process metric names (similar to your original logic)
+            processed_metrics = []
+            for metric in important_ratings:
+                # Remove 'pct' prefix if exists
+                if metric.startswith('pct'):
+                    metric = metric[3:]
+                
+                # Add line breaks for long names
+                if ' ' in metric:
+                    metric = metric.replace(' ', '<br>')
+                
+                processed_metrics.append(metric)
+            
+            # Create figure with dark theme
+            fig = go.Figure()
+            
+            # Add main player
+            fig.add_trace(go.Scatterpolar(
+                r=player_ratings,
+                theta=processed_metrics,
+                fill='toself',
+                name=f'{player_name}',
+                line=dict(color='#00ff00', width=2),
+                fillcolor='rgba(0, 255, 0, 0.3)',
+                marker=dict(size=8, color='#00ff00')
+            ))
+            
+            # Initialize comp_player_mins
+            comp_player_mins = None
+            
+            # Add comparison player if needed
+            if compare == 'Yes' and comp_player_name:
+                comp_player_data = comp_data[comp_data['Player'] == comp_player_name].iloc[0]
+                comp_player_mins = comp_player_data.get('Minutes', 0)
+                comp_player_ratings = [comp_player_data[rating] for rating in important_ratings]
+                
+                fig.add_trace(go.Scatterpolar(
+                    r=comp_player_ratings,
+                    theta=processed_metrics,
+                    fill='toself',
+                    name=f'{comp_player_name}',
+                    line=dict(color='#ff0000', width=3),
+                    fillcolor='rgba(255, 0, 0, 0.4)',
+                    marker=dict(size=8, color='#ff0000')
+                ))
+            
+            # Update layout to match your dark theme
+            fig.update_layout(
+                polar=dict(
+                    bgcolor='#200020',
+                    #bgcolor = 'rgba(0,0,0,0)',
+                    radialaxis=dict(
+                        visible=True,
+                        range=[0, 100],
+                        showticklabels=False,
+                        gridcolor='white',
+                        gridwidth=1,
+                        tickvals=[25, 50, 75, 100],
+                    ),
+                    angularaxis=dict(
+                        tickfont=dict(size=14, color='white'),
+                        gridcolor='white',
+                        gridwidth=1,
+                        linecolor='white',
+                        linewidth=2
+                    )
+                ),
+                showlegend=False,
+                paper_bgcolor='#200020',
+                plot_bgcolor='#200020',
+                #paper_bgcolor='rgba(0,0,0,0)',
+                #plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white', size=14),
+                height=600,
+                margin=dict(l=80, r=80, t=80, b=80)
+            )
+            
+            # Add main player annotations AFTER layout is set
+            fig.add_annotation(
+                x=0.05, y=1.18,
+                text=f"{player_name}",
+                showarrow=False,
+                font=dict(size=20, color='#00ff00', family='Arial Black'),
+                xref="paper", yref="paper"
+            )
+            fig.add_annotation(
+                x=0.05, y=1.13,
+                text=f"{player_mins} mins",
+                showarrow=False,
+                font=dict(size=15, color='#00ff00'),
+                xref="paper", yref="paper"
+            )
+            
+            # Add comparison player annotations if needed
+            if compare == 'Yes' and comp_player_name and comp_player_mins is not None:
+                fig.add_annotation(
+                    x=0.95, y=1.18,
+                    text=f"{comp_player_name}",
+                    showarrow=False,
+                    font=dict(size=20, color='#ff0000', family='Arial Black'),
+                    xref="paper", yref="paper",
+                    xanchor="right"
+                )
+                fig.add_annotation(
+                    x=0.95, y=1.13,
+                    text=f"{comp_player_mins} mins",
+                    showarrow=False,
+                    font=dict(size=15, color='#ff0000'),
+                    xref="paper", yref="paper",
+                    xanchor="right"
+                )
+    
+            #return fig, player_mins, comp_player_mins
+            
+            return fig, player_mins, comp_player_mins if compare == 'Yes' and comp_player_name else None
+
+        
+      
+        # Create and display radar chart
+        if not compare or (compare and comp_player_name):
+            radar_fig, player_mins, comp_mins = create_comparison_radar(
+                comp_data, 
+                player_name, 
+                important_ratings, 
+                compare=compare, 
+                comp_player_name=comp_player_name
+            )
+            # Display title and minutes like your original
+       
+        st.plotly_chart(radar_fig, use_container_width=True)
+        if comp_data[comp_data['player_id'] == sb_player_id].iloc[0]['Top Speed'] == 0:
+            st.warning(f"Physical Data for {raw_player_name} not available")
+        if compare == 'Yes' and comp_data[comp_data['Player'] == comp_player_name].iloc[0]['Top Speed'] == 0:
+            st.warning(f"Physical Data for {comp_player_name} not available")
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     col1, col2 = st.columns([0.5,0.5])
 
 
+    
     with col1:
-        st.title(f"📈 Match Performance")
+        pass
     with col2:
-        st.title(f"🎯 Goals")
-        
-        col1, col2 = st.columns([0.5,0.5])
-        with col1:
-            st.write(f"Short Term Goals")
-            st.write(f"1. {player_row['Short Term #1']}")
-            st.write(f"2. {player_row['Short Term #2']}")
-            st.write(f"3. {player_row['Short Term #3']}")
-
-        with col2:
-            st.write(f"Long Term Goals")
-            st.write(f"1. {player_row['Long Term #1']}")
-            st.write(f"2. {player_row['Long Term #2']}")
-            st.write(f"3. {player_row['Long Term #3']}")
+        pass
 
 
 
@@ -270,6 +697,23 @@ def display_player_page(player_name, df):
                             use_container_width=True, height=400)
             else:
                 st.info("No sessions found for the selected date range.")
+
+            st.title(f"🎯 Goals")
+        
+            col1, col2 = st.columns([0.5,0.5])
+            with col1:
+                st.write(f"Short Term Goals")
+                st.write(f"1. {player_row['Short Term #1']}")
+                st.write(f"2. {player_row['Short Term #2']}")
+                st.write(f"3. {player_row['Short Term #3']}")
+
+            with col2:
+                st.write(f"Long Term Goals")
+                st.write(f"1. {player_row['Long Term #1']}")
+                st.write(f"2. {player_row['Long Term #2']}")
+                st.write(f"3. {player_row['Long Term #3']}")
+    else:
+        st.info("No sessions with player.")
 
 def main():
     
