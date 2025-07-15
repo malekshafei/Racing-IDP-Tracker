@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import io
 from datetime import datetime, date, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
@@ -588,6 +589,359 @@ def display_player_page(player_name, df):
 
 
 
+    st.title("Activity Maps")
+    p_events = pd.read_parquet(f"NWSL2025-AppLeagueEvents.parquet")
+    events = p_events[p_events['player_id'] == sb_player_id]
+    card_options = ['Touches', 'Pressures', 'Defensive Duels', 'Ball Carrying', 'Progressive Actions', 'Key Passes', 'Shots']
+
+
+    selected_card = st.pills("Selected Visuals",
+                                card_options, default = 'Touches')
+    import matplotlib.patches as patches
+    import matplotlib.pyplot as plt
+    from mplsoccer import VerticalPitch, Pitch
+    from PIL import Image
+    from matplotlib.colors import LinearSegmentedColormap
+
+    def safe_div(a, b):
+        return a / b if b != 0 else 0
+    
+    if selected_card == 'Shots':
+        st.header("Shots")
+        
+        shots = events[(events['type'] == 'Shot') & (events['shot_type'] != 'Penalty')]
+        goals_scored = len(events[events['shot_outcome'] == 'Goal'])
+        xg_total = round(np.nansum(events['shot_statsbomb_xg']),2)
+        shots_taken = len(shots)
+        xg_per_shot = round(safe_div(xg_total, shots_taken),2)
+        goal_conversion = int(safe_div(goals_scored, shots_taken) * 100)
+        pens_taken = len(events[(events['shot_type'] == 'Penalty')])
+        pens_scored = len(events[(events['shot_outcome'] == 'Goal') & (events['shot_type'] == 'Penalty')])
+
+        transition_xg = round(np.nansum(events[(events['pressure_in_prev_15s'] == True) | (events['counter_shot'] == True)]['shot_statsbomb_xg']),2)
+        sp_xg = round(np.nansum(events[(events['shot_from_corner'] == True) | (events['shot_from_fk'] == True)]['shot_statsbomb_xg']),2)
+
+        # Display stats
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Goals", goals_scored)
+            st.metric("xG", xg_total)
+        with col2:
+            st.metric("Shots", shots_taken)
+            st.metric("xG/Shot", xg_per_shot)
+        with col3:
+            st.metric("Conversion", f"{goal_conversion}%")
+            st.metric("Transition xG | Set Piece xG", f"{transition_xg}  |  {sp_xg}")
+
+        #st.write(f"**Shots:** {shots_taken}  |  **Goals:** {goals_scored}  |  **Conversion:** {goal_conversion}%")
+        #st.write(f"**xG:** {xg_total} | **xG/Shot:** {xg_per_shot}  | **Transition xG:** {transition_xg} | **Set Piece xG:** {sp_xg}")
+        st.write("🟢 Goal | 🟡 Saved | 🔴 Off Target/Blocked")
+        #st.write(f"**Transition xG:** {transition_xg} | **Set Piece xG:** {sp_xg}")
+
+        # Create shot map
+        pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                    half=True, pad_top=6, corner_arcs=True,)
+        
+        fig, ax = pitch.draw(figsize=(8,12))
+        
+        shots = events[events['type'] == 'Shot']
+        for _, row in shots.iterrows():
+            x = row['x']
+            y = row['y']
+            outcome = row['shot_outcome']
+            xg = row['shot_statsbomb_xg']
+
+            color = 'red' 
+            if outcome == 'Goal': color = 'green'
+            elif outcome == 'Saved': color = 'yellow'
+            elif outcome == 'Saved to Post': color = 'yellow'
+            
+            pitch.scatter(x, y, ax=ax, color=color, marker='.', s=min(xg*2050, 500))
+
+        
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+    elif selected_card == 'Key Passes':
+        st.header("Key Passes")
+        
+        kps = events[(events['type'] == 'Pass') & ((events['pass_shot_assist'] == True) | (events['pass_goal_assist'] == True))]
+        assists = len(events[events['pass_goal_assist'] == True])
+        xa_total = round(np.nansum(events['xA']),2)
+        kps_num = len(kps)
+        big_chances_created = len(events[events['xA'] > 0.1])
+        sp_kps = len(events[(events['pass_type'].isin(['Free Kick', 'Corner'])) & ((events['pass_shot_assist'] == True) | (events['pass_goal_assist'] == True))])
+        cross_att = len(events[events['pass_cross'] == True])
+        cross_succ = len(events[(events['completed_pass'] == True) & (events['pass_cross'] == True)])
+        cross_shot_assists = len(events[((events['pass_shot_assist'] == True)  | (events['pass_goal_assist'] == True)) & (events['pass_cross'] == True)])
+
+        # Display stats
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Assists", assists)
+            st.metric("Big Chances", big_chances_created)
+        with col2:
+            st.metric("xA", xa_total)
+            st.metric("Key Passes", kps_num)
+        with col3:
+            st.metric("Crosses", f"{cross_succ}/{cross_att}")
+            st.metric("Cross Shot Assists", cross_shot_assists)
+
+        # Create key passes map
+        pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                    half=True, pad_top=6, corner_arcs=True,)
+        
+        fig, ax = pitch.draw(figsize=(8,12))
+        
+        for _, row in kps.iterrows():
+            x1 = row['x']
+            y1 = row['y']
+            x2 = row['pass_end_x']
+            y2 = row['pass_end_y']
+            outcome = row['pass_goal_assist']
+
+            color = 'green' if outcome == True else 'orange'
+            
+            pitch.scatter(x1, y1, ax=ax, color='white', marker='.', s=80)
+            pitch.scatter(x2, y2, ax=ax, color=color, marker='.', s=250)
+            pitch.lines(linewidth=3, xstart=x1, ystart=y1, xend=x2, yend=y2, comet=True, ax=ax, color=color)
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+    elif selected_card == 'Ball Carrying':
+        st.header("1v1 Dribbling & Carrying")
+        
+        take_on_att = len(events[(events['type'] == 'Dribble')])
+        take_on_succ = len(events[(events['type'] == 'Dribble') & (events['dribble_outcome'] == 'Complete')])
+        box_take_on_att = len(events[(events['type'] == 'Dribble') & (events['x'] > 102) & (events['y'] > 17) & (events['y'] < 62)])
+        box_take_on_succ = len(events[(events['type'] == 'Dribble') & (events['dribble_outcome'] == 'Complete') & (events['x'] > 102) & (events['y'] > 17) & (events['y'] < 62)])
+        dribble_succ = int(safe_div(take_on_succ, take_on_att) * 100)
+        box_dribble_succ = int(safe_div(box_take_on_succ, box_take_on_att) * 100)
+        prog_carries = len(events[events['is_progressive_carry'] == True])
+        carries_into_box = len(events[(events['type'] == 'Carry') & (events['is_box_entry'] == True)])
+
+        # Display stats
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Take Ons", f"{take_on_succ}/{take_on_att} ({dribble_succ}%)")
+            st.metric("Progressive Carries", prog_carries)
+        with col2:
+            st.metric("Inside Box", f"{box_take_on_succ}/{box_take_on_att}")
+            st.metric("Box Entries", carries_into_box)
+
+        # Create carrying map
+        dribbles = events[(events['type'].isin(['Carry', 'Dribble']))]
+        pitch = Pitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                    pad_top=6, corner_arcs=True,)
+        
+        fig, ax = pitch.draw(figsize=(8,12))
+        
+        for _, row in dribbles.iterrows():
+            if row['is_progressive_carry'] == True:
+                x1 = row['x']
+                y1 = row['y']
+                x2 = row['carry_end_x']
+                y2 = row['carry_end_y']
+                
+                pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='orange')
+
+            if row['type'] == 'Dribble':
+                x1 = row['x']
+                y1 = row['y']
+                color = 'green' if row['dribble_outcome'] == 'Complete' else 'red'
+                pitch.scatter(x1, y1, ax=ax, color=color, marker='.', s=250)
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+    elif selected_card == 'Progressive Actions':
+        st.header("Progressive Passes & Carries")
+        
+        prog_actions = events[(events['is_progressive'] == True) | (events['is_progressive_carry'] == True)]
+        succ_prog_passes = len(events[(events['type'] == 'Pass') & (events['is_progressive'] == True) & (events['completed_pass'] == True)])
+        att_prog_passes = len(events[(events['type'] == 'Pass') & (events['is_progressive'] == True)])
+        prog_carries = len(events[(events['type'] == 'Carry') & (events['is_progressive_carry'] == True)])
+        prog_pass_rate = int(safe_div(succ_prog_passes, att_prog_passes) * 100)
+        total_actions = len(events[events['type'].isin(['Pass', 'Carry'])])
+        pct_prog = int(safe_div(len(prog_actions), total_actions) * 100)
+
+        # Display stats
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Progressive Passes", f"{succ_prog_passes}/{att_prog_passes} ({prog_pass_rate}%)")
+        with col2:
+            st.metric("Progressive Carries", prog_carries)
+        
+        with col3:
+            st.metric("% of Actions Progressive", f"{pct_prog}%")
+
+        st.write("🟠 Progressive Passes | 🟣 Progressive Carries")
+
+        # Create progressive actions map
+        pitch = Pitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                    pad_top=6, corner_arcs=True,)
+        
+        fig, ax = pitch.draw(figsize=(8,12))
+        
+        for _, row in prog_actions.iterrows():
+            if row['type'] == 'Carry':
+                x1 = row['x']
+                y1 = row['y']
+                x2 = row['carry_end_x']
+                y2 = row['carry_end_y']
+                
+                pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='magenta')
+
+            if row['type'] == 'Pass' and row['completed_pass'] == True:
+                x1 = row['x']
+                y1 = row['y']
+                x2 = row['pass_end_x']
+                y2 = row['pass_end_y']
+                
+                pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='orange')
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+    elif selected_card == 'Touches':
+        st.header("Touches")
+        
+        touches_p90 = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']))]) / (player_mins/90),1)
+        touches_att_third_p90 = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']) & (events['x'] > 80))]) / (player_mins/90),1)
+        touches_box = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']) & (events['x'] > 102) & (events['y'] < 62) & (events['y'] > 17))]) / (player_mins/90),1)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Touches p90", touches_p90)
+        with col2:
+            st.metric("Att. 1/3 Touches p90", touches_att_third_p90)
+        with col3:
+            st.metric("Box Touches p90", touches_box)
+
+        df_touches = events.loc[events.type.isin(['Pass', 'Ball Receipt*', 'Shot']), ['x', 'y']]
+        flamingo_cmap = LinearSegmentedColormap.from_list("Flamingo - 10 colors", ['#e3aca7', '#c03a1d'], N=10)
+        
+        pitch = Pitch(line_color='white', line_zorder=2, pitch_color='#200020')
+        fig, ax = pitch.draw(figsize=(12, 8))
+        hexmap = pitch.hexbin(df_touches.x, df_touches.y, ax=ax, edgecolors='#f4f4f4',
+                            gridsize=(12, 6), cmap=flamingo_cmap, mincnt=3)
+
+        st.pyplot(fig)
+        plt.close(fig)
+
+    elif selected_card == 'Pressures':
+        st.header("Pressures")
+
+        pressures_p90 = round(len(events[(events['type'] == 'Pressure')]) / (player_mins/90),1)
+        att_third_pressures = round(len(events[(events['type'] == 'Pressure') & (events['x'] > 80)]) / (player_mins/90),1)
+        pressures_to_shot = round(len(events[(events['type'] == 'Pressure') & (events['pressure_leading_to_shot'] == True)]) / (player_mins/90),1)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Pressures p90", pressures_p90)
+            
+        with col2:
+            st.metric("Att. 1/3 Pressures p90", att_third_pressures)
+
+        with col3:
+            st.metric("Pressures Leading to Shot p90", pressures_to_shot)
+        
+
+        df_touches = events.loc[events.type.isin(['Pressure']), ['x', 'y']]
+        flamingo_cmap = LinearSegmentedColormap.from_list("Flamingo - 10 colors", ['#e3aca7', '#c03a1d'], N=10)
+        
+        pitch = Pitch(line_color='white', line_zorder=2, pitch_color='#200020')
+        fig, ax = pitch.draw(figsize=(12, 8))
+        hexmap = pitch.hexbin(df_touches.x, df_touches.y, ax=ax, edgecolors='#f4f4f4',
+                            gridsize=(12, 6), cmap=flamingo_cmap, mincnt=3)
+
+        st.pyplot(fig)
+        plt.close(fig)
+                                
+                                
+    
+
+
+    st.title("Match Reports")
+   
+    def parse_filename(filename):
+        """Parse filename: {match_id}-{match_date}-{opponent}-{player_name}.png"""
+        parts = filename.replace('.png', '').split('-')
+        if len(parts) < 4:
+            return None
+        return {
+            'match_id': parts[0],
+            'match_date': f"{parts[2]}/{parts[3]}",
+            'opponent': parts[4],
+            'player_name': parts[5],
+            'filename': filename
+        }
+
+    def get_player_images(player_name):
+        folder_path = "IDP Images"
+        
+        images = []
+        for filename in os.listdir(folder_path):
+            
+            parsed = parse_filename(filename)
+            #print(parsed)
+            if parsed and parsed['player_name'] == raw_player_name:
+                images.append(parsed)
+
+        def sort_key(image_data):
+            # Split the filename to get the date parts
+            filename_parts = image_data['filename'].replace('.png', '').split('-')
+            year = filename_parts[1]
+            month = filename_parts[2] 
+            day = filename_parts[3]
+            return datetime.strptime(f"{year}-{month}-{day}", '%Y-%m-%d')
+            
+        images.sort(key=sort_key, reverse=True)
+        return images
+
+    
+
+  
+    # Get all players
+    all_players = set()
+    folder_path = "IDP Images"
+    if os.path.exists(folder_path):
+        for filename in os.listdir(folder_path):
+            if filename.endswith('.png'):
+                parsed = parse_filename(filename)
+                if parsed:
+                    all_players.add(parsed['player_name'])
+
+    if not all_players:
+        st.error(f"No images found in '{folder_path}' folder")
+        st.stop()
+
+   
+    # Get player images
+    images = get_player_images(raw_player_name)
+    if not images:
+        st.warning(f"No images found for {raw_player_name}")
+        st.stop()
+
+    # Match selection dropdown
+    options = [f"{img['match_date']} - {img['opponent']}" for img in images]
+    selected = st.selectbox("Select match:", options, index=0)
+
+    # Display selected image
+    selected_img = images[options.index(selected)]
+    image_path = os.path.join(folder_path, selected_img['filename'])
+
+    if os.path.exists(image_path):
+        st.image(image_path, caption=f"{raw_player_name} - {selected}")
+        #st.write(f"**Match ID:** {selected_img['match_id']} | **Date:** {selected_img['match_date']} | **Opponent:** {selected_img['opponent']}")
+    else:
+        st.error("Image file not found")
+
+
+
+
 
 
 
@@ -808,7 +1162,7 @@ def main():
         if not df_filtered.empty:
             display_df = df_filtered.copy()
             display_df['Date'] = display_df['Date'].dt.strftime('%Y-%m-%d')
-            st.dataframe(display_df, use_container_width=True, height=400)
+            st.dataframe(display_df[['Player', 'Type', 'Detail', 'Date', 'Coach', 'Notes']], use_container_width=True, height=400)
         else:
             st.info("No training sessions found for the selected criteria.")
     
@@ -1032,6 +1386,12 @@ def main():
         filter_days = st.selectbox("Show entries from", 
                                          ["All time","Last 7 days", "Last 30 days", "Last 90 days"],
                                          key="remove_date_filter")
+        
+        filter_type = st.pills("Show entries from", 
+                                         df_analysis['Type'].unique(),
+                                         selection_mode = "multi",
+                                         default=df_analysis['Type'].unique(),
+                                         key="remove_type_filter")
             
         # Apply filters
         df_filtered = df.copy()
@@ -1048,12 +1408,13 @@ def main():
         else:
             cutoff = datetime.now() - timedelta(days=1000)
             
+        
         # Recent data (last 30 days)
         #recent_cutoff = datetime.now() - timedelta(days=30)
-        df_recent = df_analysis[df_analysis['Date'] >= cutoff]
+        df_recent = df_analysis[(df_analysis['Date'] >= cutoff) & (df_analysis['Type'].isin(filter_type))]
         
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             st.subheader("Sessions by Player")
@@ -1063,16 +1424,32 @@ def main():
                 st.dataframe(player_stats, use_container_width=True)
         
         with col2:
-            st.subheader("Training Details Distribution")
+            st.subheader("Focus Areas")
             if not df_recent.empty:
-                type_stats = df_recent.groupby("Detail").size().reset_index(name='Sessions')
+                session_details = df_recent.groupby(["Session_ID", "Detail"]).size().reset_index(name='temp')
+                type_stats = session_details.groupby('Detail').size().reset_index(name='Sessions')
                 type_stats = type_stats.sort_values('Sessions', ascending=False)
                 st.dataframe(type_stats, use_container_width=True)
+
+        with col3:
+            st.subheader("Sessions by Group")
+            if not df_recent.empty:
+                df_temp = df2[['Player', 'Position Group']]
+                df_recent_copy = pd.merge(df_recent, df_temp, how='left', on='Player')
+                session_positions = df_recent_copy.groupby(['Session_ID', 'Position Group']).size().reset_index(name='temp')
+                pos_stats = session_positions.groupby('Position Group').size().reset_index(name='Sessions')
+                pos_stats = pos_stats.sort_values('Sessions', ascending=False)
+                st.dataframe(pos_stats, use_container_width=False,column_config={
+                    "Position Group": st.column_config.TextColumn(width="small"),  # or "small", "large"
+                    "Sessions": st.column_config.NumberColumn(width="small")
+                })
         
         # Coach performance
         st.subheader("Sessions by Coach (Last 30 Days)")
         if not df_recent.empty:
-            coach_stats = df_recent.groupby("Coach").size().reset_index(name='Sessions')
+            
+            coach_stats = df_recent.groupby(["Session_ID", "Coach"]).size().reset_index(name='temp')
+            coach_stats = coach_stats.groupby("Coach").size().reset_index(name='Sessions')
             coach_stats = coach_stats.sort_values('Sessions', ascending=False)
             st.bar_chart(coach_stats.set_index('Coach')['Sessions'])
     
