@@ -53,7 +53,9 @@ player_id_matching = {
 
 # File path for the Excel workbook
 EXCEL_FILE = "MitchIDPs.xlsx"
-df2 = pd.read_excel(EXCEL_FILE, sheet_name = 'Player Bios')
+
+BIO_File = "IDP-Bios.xlsx"
+df2 = pd.read_excel(BIO_File)
 
 
 def load_data():
@@ -123,7 +125,7 @@ def push_to_github(excel_bytes, commit_message="Update Excel file"):
 #         st.error(f"Error saving data: {e}")
 #         return False
 
-def save_data(df, df2):  # Added df2 as parameter since you're using it
+def save_data(df):  # Added df2 as parameter since you're using it
     """Save data to Excel file locally AND push to GitHub"""
     try:
         # Create Excel file in memory first
@@ -131,7 +133,7 @@ def save_data(df, df2):  # Added df2 as parameter since you're using it
         
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Sheet1', index=False)
-            df2.to_excel(writer, sheet_name='Player Bios', index=False)
+            #df2.to_excel(writer, sheet_name='Player Bios', index=False)
         
         # Get the Excel bytes
         excel_bytes = excel_buffer.getvalue()
