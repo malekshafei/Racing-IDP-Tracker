@@ -7,6 +7,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import calendar
 import os
+import requests
+import base64
+import json
+from io import BytesIO
 
 # Set page config
 st.set_page_config(
@@ -62,20 +66,96 @@ def load_data():
         
 
         return df
-
-def save_data(df):
-    """Save data to Excel file"""
+def push_to_github(excel_bytes, commit_message="Update Excel file"):
+    """Push Excel file to GitHub"""
     try:
-        with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
+        # Get GitHub config from secrets
+        token = st.secrets["github"]["token"]
+        repo_owner = st.secrets["github"]["repo_owner"]
+        repo_name = st.secrets["github"]["repo_name"]
+        file_path = st.secrets["github"]["file_path"]
+        
+        # Encode to base64
+        content_encoded = base64.b64encode(excel_bytes).decode('utf-8')
+        
+        # GitHub API URL
+        api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file_path}"
+        
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+        
+        # Get current file SHA (required for updates)
+        response = requests.get(api_url, headers=headers)
+        current_sha = response.json().get("sha") if response.status_code == 200 else None
+        
+        # Prepare the update payload
+        data = {
+            "message": commit_message,
+            "content": content_encoded,
+        }
+        
+        if current_sha:
+            data["sha"] = current_sha
+        
+        # Push to GitHub
+        response = requests.put(api_url, headers=headers, json=data)
+        
+        if response.status_code in [200, 201]:
+            return True, "Successfully saved to GitHub!"
+        else:
+            return False, f"GitHub API error: {response.json()}"
+            
+    except Exception as e:
+        return False, f"Error pushing to GitHub: {str(e)}"
+
+# def save_data(df):
+#     """Save data to Excel file"""
+#     try:
+#         with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
+#             df.to_excel(writer, sheet_name='Sheet1', index=False)
+#             df2.to_excel(writer, sheet_name='Player Bios', index=False)
+        
+#             #df.to_excel(EXCEL_FILE, index=False)
+#         return True
+#     except Exception as e:
+#         st.error(f"Error saving data: {e}")
+#         return False
+
+def save_data(df, df2):  # Added df2 as parameter since you're using it
+    """Save data to Excel file locally AND push to GitHub"""
+    try:
+        # Create Excel file in memory first
+        excel_buffer = BytesIO()
+        
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Sheet1', index=False)
             df2.to_excel(writer, sheet_name='Player Bios', index=False)
         
-            #df.to_excel(EXCEL_FILE, index=False)
+        # Get the Excel bytes
+        excel_bytes = excel_buffer.getvalue()
+        
+        # Save locally (your original functionality)
+        with open(EXCEL_FILE, 'wb') as f:
+            f.write(excel_bytes)
+        
+        # Push to GitHub
+        github_success, github_message = push_to_github(
+            excel_bytes, 
+            f"Update data - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        
+        if github_success:
+            st.success(f"✅ Data saved locally and to GitHub!")
+        else:
+            st.warning(f"✅ Data saved locally, but GitHub failed: {github_message}")
+            
         return True
+        
     except Exception as e:
         st.error(f"Error saving data: {e}")
         return False
-
 def add_training_entry(player_name, training_type, training_detail, training_date, coach_name, notes, session_id=None):
     """Add a new training entry to the data - returns True/False for success"""
     df = load_data()
