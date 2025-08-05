@@ -1229,21 +1229,38 @@ def main():
         
         # Display metrics
         if not df_filtered.empty:
+            temp_df = df_filtered.groupby('Session_ID').agg({
+                'Player': lambda x: ', '.join(sorted(x.unique())),  # Combine all unique players
+                'Type': 'first',  # Assuming same for all players in session
+                'Detail': 'first',  # Assuming same for all players in session
+                'Date': 'first',  # Assuming same for all players in session
+                'Coach': 'first',  # Assuming same for all players in session
+                'Notes': 'first',  # Assuming same for all players in session
+                
+            }).reset_index()
+            
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Total Sessions", df_filtered['Session_ID'].nunique())
+                st.metric("Total Sessions", len(temp_df))
             with col2:
-                st.metric("Players", df_filtered["Player"].nunique())
+                #st.metric("Players", df_filtered["Player"].nunique())
+                all_players_in_filtered = set()
+                for players_str in temp_df['Player']:
+                    all_players_in_filtered.update(players_str.split(', '))
+                st.metric("Players", len(all_players_in_filtered))
             with col3:
-                spw = round(df_filtered['Session_ID'].nunique() / ((end_date - start_date).days / 7),1)
+                #spw = round(df_filtered['Session_ID'].nunique() / ((end_date - start_date).days / 7),1)
+                spw = round(len(temp_df) / ((end_date - start_date).days / 7), 1)
                 st.metric("Sessions per Week", spw)
             
         
-        # Display data table
-        st.subheader("Training Sessions")
-        if not df_filtered.empty:
-            display_df = df_filtered.copy()
-            display_df['Date'] = display_df['Date'].dt.strftime('%Y-%m-%d')
+
+            st.subheader("Training Sessions")
+            display_df = temp_df.copy()
+            display_df['Date'] = pd.to_datetime(display_df['Date']).dt.strftime('%Y-%m-%d')
+    
+            #display_df = df_filtered.copy()
+            #display_df['Date'] = display_df['Date'].dt.strftime('%Y-%m-%d')
             st.dataframe(display_df[['Player', 'Type', 'Detail', 'Date', 'Coach', 'Notes']], use_container_width=True, height=400)
         else:
             st.info("No training sessions found for the selected criteria.")
