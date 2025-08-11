@@ -299,7 +299,7 @@ def display_player_page(player_name, df):
     if player_mins > 100:
         sb_player_id = player_id_matching[raw_player_name]
         season_data = pd.read_parquet("NWSL2025-AppPlayerSeasonPercentiles.parquet")
-        season_data.drop(['Matches Played','pctDistance','pctRunning Distance','pctHSR Distance','pctCount HSR', 'pctSprinting Distance', 'pctSprint Count', 'pctHI Distance', 'pctHI Count', 'pctMedium Accels','pctHigh Accels','pctMedium Decels', 'pctHigh Decels', 'pctWalking to HSR Count', 'pctWalking to Sprint Count', 'pctMatches Played', 'pctTop Speed', 'pctTime to Sprint', 'pctTime to HSR', 'pctWalking Distance', 'pct% of Distance Walking', 'pct% of Distance HI', 'pct% of Distance Sprinting', 'pct% of HI Distance Sprinting','Speed', 'Intensity', 'Explosiveness','Agility'],axis=1)
+        #season_data.drop(['Matches Played','pctDistance','pctRunning Distance','pctHSR Distance','pctCount HSR', 'pctSprinting Distance', 'pctSprint Count', 'pctHI Distance', 'pctHI Count', 'pctMedium Accels','pctHigh Accels','pctMedium Decels', 'pctHigh Decels', 'pctWalking to HSR Count', 'pctWalking to Sprint Count', 'pctMatches Played', 'pctTop Speed', 'pctTime to Sprint', 'pctTime to HSR', 'pctWalking Distance', 'pct% of Distance Walking', 'pct% of Distance HI', 'pct% of Distance Sprinting', 'pct% of HI Distance Sprinting','Speed', 'Intensity', 'Explosiveness','Agility'],axis=1)
 
         # pos_map = {
         #     1: 'GK',
@@ -394,9 +394,10 @@ def display_player_page(player_name, df):
         for col in comp_data.columns:
             if col not in special_cols and col != 'Top Speed':
                 comp_data[col] = comp_data[col] / comp_data['Minutes']    
-                if col not in phys_cols + phys_pct_cols: comp_data[f'pct{col}'] = round(comp_data[col].rank(pct=True) * 100,2)
+                #if col not in phys_cols + phys_pct_cols: comp_data[f'pct{col}'] = round(comp_data[col].rank(pct=True) * 100,2)
+                comp_data[f'pct{col}'] = round(comp_data[col].rank(pct=True) * 100,2)
                 #comp_data[f'pct{col}'].fillna(0)
-        
+        comp_data['pctTop Speed'] = round(comp_data['Top Speed'].rank(pct=True) * 100,2)
         
         important_metrics = []
         selected_metrics = []
