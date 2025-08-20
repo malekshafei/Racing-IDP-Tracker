@@ -975,12 +975,15 @@ def display_player_page(player_name, df):
 
         def sort_key(image_data):
             # Split the filename to get the date parts
-            if filename[:4] == '----': return 0
-            filename_parts = image_data['filename'].replace('.png', '').split('-')
-            year = filename_parts[1]
-            month = filename_parts[2] 
-            day = filename_parts[3]
-            return datetime.strptime(f"{year}-{month}-{day}", '%Y-%m-%d')
+            fn = image_data['filename']
+            print(fn)
+            if fn[:4] == '----': return 0
+            else:
+                filename_parts = image_data['filename'].replace('.png', '').split('-')
+                year = filename_parts[1]
+                month = filename_parts[2] 
+                day = filename_parts[3]
+                return datetime.strptime(f"{year}-{month}-{day}", '%Y-%m-%d')
             
         images.sort(key=sort_key, reverse=True)
         return images
