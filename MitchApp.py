@@ -975,6 +975,7 @@ def display_player_page(player_name, df):
 
         def sort_key(image_data):
             # Split the filename to get the date parts
+            if filename[:4] == '----': return 0
             filename_parts = image_data['filename'].replace('.png', '').split('-')
             year = filename_parts[1]
             month = filename_parts[2] 
