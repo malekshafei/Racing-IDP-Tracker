@@ -339,6 +339,10 @@ def display_player_page(player_name, df):
 
         with col3:
             if compare == 'Yes': 
+                comp2 = pd.read_parquet("NWSL2024-AppPlayerSeasonPercentiles.parquet")
+                comp2 = comp2[(comp2['Player'] == raw_player_name) & (comp2['Position Group'].isin(positions))]
+                comp2['Player'] = comp2['Player'].replace({raw_player_name: f"{raw_player_name} (2024)"})
+                comp_data = pd.concat([comp_data,comp2])
                 comp_player_name = st.selectbox('Player', comp_data[comp_data['Player'] != raw_player_name]['Player'].unique())
             else: comp_player_name = '...'
         
@@ -952,6 +956,7 @@ def display_player_page(player_name, df):
     def parse_filename(filename):
         """Parse filename: {match_id}-{match_date}-{opponent}-{player_name}.png"""
         parts = filename.replace('.png', '').split('-')
+        print(filename)
         if len(parts) < 4:
             return None
         return {
@@ -960,7 +965,7 @@ def display_player_page(player_name, df):
             'opponent': parts[4],
             'player_name': parts[5],
             'filename': filename
-        }
+        } 
 
     def get_player_images(player_name):
         folder_path = "IDP Images"
