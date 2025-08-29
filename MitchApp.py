@@ -11,6 +11,8 @@ import requests
 import base64
 import json
 from io import BytesIO
+import warnings
+warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 # Set page config
 st.set_page_config(
@@ -1053,6 +1055,108 @@ def display_player_page(player_name, df):
     with col2:
         pass
 
+
+    st.title("Match by Match Data")
+    import plotly.graph_objects as go
+    
+
+
+    # Load and filter data
+    player_match_df = pd.read_parquet("/Users/malekshafei/Desktop/Louisville/NWSL2025PlayerMatchDataPercentiles.parquet")
+    player_match_df = player_match_df[player_match_df['player_id'] == sb_player_id].sort_values(by='match_date')
+
+    # Create Match column
+    player_match_df['Match'] = player_match_df['match_date'].str[5:] + " - " + player_match_df['Opponent']
+
+    # Get available metrics (excluding non-metric columns)
+    exclude_cols = ['Player', 'Team', 'Position', 'Minutes', 'Opponent', 'match_date', 'match_id', 'pos_group', 'player_id', 'Match']
+    metrics = [col for col in player_match_df.columns if col not in exclude_cols and not col[:3] == 'pct']
+
+    # Initialize session state for selected metrics
+    if 'selected_metrics' not in st.session_state:
+        st.session_state.selected_metrics = ['Ball Retention %', 'Progressive Passes']
+
+    # Metric selection interface
+    st.subheader("Select Metrics (Choose 1 or 2)")
+    selected_metrics = st.multiselect(
+        "Choose metrics to display:",
+        options=metrics,
+        default=st.session_state.selected_metrics,
+        max_selections=2
+    )
+
+    # Update session state
+    st.session_state.selected_metrics = selected_metrics
+
+    # Validate selection
+    if len(selected_metrics) < 1:
+        st.error("Please select at least 1 metric.")
+    elif len(selected_metrics) > 2:
+        st.error("Please select no more than 2 metrics.")
+    else:
+        # Create the interactive plot
+        fig = go.Figure()
+        colors = ['green', 'purple']
+        
+        # Add traces for selected metrics
+        for i, metric in enumerate(selected_metrics):
+            fig.add_trace(go.Scatter(
+                x=player_match_df['Match'],
+                y=player_match_df[metric],
+                mode='lines+markers',
+                name=metric,
+                yaxis='y' if i == 0 else 'y2',
+                line=dict(color=colors[i]),
+                marker=dict(size=8),
+                hovertemplate=f'<b>{metric}</b><br>' +
+                            'Match: %{x}<br>' +
+                            'Value: %{y:.2f}<br>' +
+                            '<extra></extra>'
+            ))
+        
+        # Create title with color coding
+        if len(selected_metrics) == 2:
+            title = f"<b style='color:white'>{selected_metrics[0]}</b> <b style='color:black'>vs</b> <b style='color:purple'>{selected_metrics[1]}</b>"
+        else:
+            title = f"<b style='color:white'>{selected_metrics[0]}</b>"
+        
+        # Update layout
+        layout = {
+            'title': {
+                'text': title,
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 18, 'color': 'black'}
+            },
+            'xaxis': {
+                'title': "Match",
+                'tickangle': -45
+            },
+            'yaxis': {
+                'title': selected_metrics[0],
+                'side': "left",
+                'tickfont': {'color': 'white'}
+            },
+            'plot_bgcolor': 'rgba(0,0,0,0)',
+            'paper_bgcolor': 'rgba(0,0,0,0)',
+            'hovermode': 'x unified'
+        }
+        
+        # Add second y-axis if two metrics selected
+        if len(selected_metrics) == 2:
+            layout['yaxis2'] = {
+                'title': selected_metrics[1],
+                'side': "right",
+                'overlaying': "y",
+                'tickfont': {'color': 'purple'}
+            }
+        
+        fig.update_layout(layout)
+        
+        # Display the interactive plot
+        st.plotly_chart(fig, use_container_width=True)
+        
+       
 
 
     st.title(f"🏃‍♂️ Training Profile")
