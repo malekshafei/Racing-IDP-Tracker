@@ -1062,7 +1062,7 @@ def display_player_page(player_name, df):
 
 
     # Load and filter data
-    player_match_df = pd.read_parquet("/Users/malekshafei/Desktop/Louisville/NWSL2025PlayerMatchDataPercentiles.parquet")
+    player_match_df = pd.read_parquet("NWSL2025PlayerMatchDataPercentiles.parquet")
     player_match_df = player_match_df[player_match_df['player_id'] == sb_player_id].sort_values(by='match_date')
 
     # Create Match column
