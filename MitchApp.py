@@ -33,6 +33,7 @@ player_id_matching = {
     'Angela Baron': 403272,
     'Elli Pikkujamsa': 225161,
     'Allie George': 451020,
+    'Katie Scott': 455761,
 
     'Taylor Flint': 428578,
     'Avery Kalitta': 454905,
@@ -40,6 +41,7 @@ player_id_matching = {
     'Ary Borges': 389488,
     "Katie O'Kane": 469677,
     "Jordan Baggett": 30652,
+
 
     
     'Ella Hase': 453203,
@@ -67,7 +69,7 @@ def load_data():
         df = pd.read_excel(EXCEL_FILE, sheet_name = 'Sheet1')
 
         df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', dayfirst=False)
-        df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
+        df['Date'] = df['Date'].dt.strftime('%Y-%m-%d') 
         
 
         return df
@@ -285,6 +287,15 @@ def display_player_page(player_name, df):
     max_mins_per_match = game_overview.groupby('match_id')['Minutes'].max()
     poss_mins =  max_mins_per_match.sum()
 
+    if raw_player_name in ['Makenna Morris']:
+        poss_matches = game_overview[game_overview['match_date'] > '2025-08-27']['match_id'].nunique()
+        max_mins_per_match = game_overview[game_overview['match_date'] > '2025-08-27'].groupby('match_id')['Minutes'].max()
+        poss_mins =  max_mins_per_match.sum()
+    if raw_player_name in ['Katie Scott']:
+        poss_matches = game_overview[game_overview['match_date'] > '2025-08-07']['match_id'].nunique()
+        max_mins_per_match = game_overview[game_overview['match_date'] > '2025-08-07'].groupby('match_id')['Minutes'].max()
+        poss_mins =  max_mins_per_match.sum()
+
     player_squad_apps = len(game_overview[(game_overview['Player'] == raw_player_name) & (game_overview['In Squad'] == True)])
     player_starts = len(game_overview[(game_overview['Player'] == raw_player_name) & (game_overview['Started'] == True)])
     player_came_on = len(game_overview[(game_overview['Player'] == raw_player_name) & (game_overview['Came On'] == True)])
@@ -299,8 +310,10 @@ def display_player_page(player_name, df):
     with col4: st.metric("Minutes", f"{player_mins}")
     with col5: st.metric("% of Mins", f"{pct_possible_mins}%")
 
+    sb_player_id = player_id_matching[raw_player_name]
+    print(player_mins)
     if player_mins > 100:
-        sb_player_id = player_id_matching[raw_player_name]
+        #sb_player_id = player_id_matching[raw_player_name]
         season_data = pd.read_parquet("NWSL2025-AppPlayerSeasonPercentiles.parquet")
         #season_data.drop(['Matches Played','pctDistance','pctRunning Distance','pctHSR Distance','pctCount HSR', 'pctSprinting Distance', 'pctSprint Count', 'pctHI Distance', 'pctHI Count', 'pctMedium Accels','pctHigh Accels','pctMedium Decels', 'pctHigh Decels', 'pctWalking to HSR Count', 'pctWalking to Sprint Count', 'pctMatches Played', 'pctTop Speed', 'pctTime to Sprint', 'pctTime to HSR', 'pctWalking Distance', 'pct% of Distance Walking', 'pct% of Distance HI', 'pct% of Distance Sprinting', 'pct% of HI Distance Sprinting','Speed', 'Intensity', 'Explosiveness','Agility'],axis=1)
 
@@ -679,279 +692,279 @@ def display_player_page(player_name, df):
 
 
 
-    st.title("Activity Maps")
-    p_events = pd.read_parquet(f"NWSL2025-AppLeagueEvents.parquet")
-    events = p_events[p_events['player_id'] == sb_player_id]
-    card_options = ['Touches', 'Pressures', 'Defensive Duels', 'Ball Carrying', 'Progressive Actions', 'Key Passes', 'Shots']
+        st.title("Activity Maps")
+        p_events = pd.read_parquet(f"NWSL2025-AppLeagueEvents.parquet")
+        events = p_events[p_events['player_id'] == sb_player_id]
+        card_options = ['Touches', 'Pressures', 'Defensive Duels', 'Ball Carrying', 'Progressive Actions', 'Key Passes', 'Shots']
 
 
-    selected_card = st.pills("Selected Visuals",
-                                card_options, default = 'Touches')
-    import matplotlib.patches as patches
-    import matplotlib.pyplot as plt
-    from mplsoccer import VerticalPitch, Pitch
-    from PIL import Image
-    from matplotlib.colors import LinearSegmentedColormap
+        selected_card = st.pills("Selected Visuals",
+                                    card_options, default = 'Touches')
+        import matplotlib.patches as patches
+        import matplotlib.pyplot as plt
+        from mplsoccer import VerticalPitch, Pitch
+        from PIL import Image
+        from matplotlib.colors import LinearSegmentedColormap
 
-    def safe_div(a, b):
-        return a / b if b != 0 else 0
-    
-    if selected_card == 'Shots':
-        st.header("Shots")
+        def safe_div(a, b):
+            return a / b if b != 0 else 0
         
-        shots = events[(events['type'] == 'Shot') & (events['shot_type'] != 'Penalty')]
-        goals_scored = len(events[events['shot_outcome'] == 'Goal'])
-        xg_total = round(np.nansum(events['shot_statsbomb_xg']),2)
-        shots_taken = len(shots)
-        xg_per_shot = round(safe_div(xg_total, shots_taken),2)
-        goal_conversion = int(safe_div(goals_scored, shots_taken) * 100)
-        pens_taken = len(events[(events['shot_type'] == 'Penalty')])
-        pens_scored = len(events[(events['shot_outcome'] == 'Goal') & (events['shot_type'] == 'Penalty')])
-
-        transition_xg = round(np.nansum(events[(events['pressure_in_prev_15s'] == True) | (events['counter_shot'] == True)]['shot_statsbomb_xg']),2)
-        sp_xg = round(np.nansum(events[(events['shot_from_corner'] == True) | (events['shot_from_fk'] == True)]['shot_statsbomb_xg']),2)
-
-        # Display stats
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Goals", goals_scored)
-            st.metric("xG", xg_total)
-        with col2:
-            st.metric("Shots", shots_taken)
-            st.metric("xG/Shot", xg_per_shot)
-        with col3:
-            st.metric("Conversion", f"{goal_conversion}%")
-            st.metric("Transition xG | Set Piece xG", f"{transition_xg}  |  {sp_xg}")
-
-        #st.write(f"**Shots:** {shots_taken}  |  **Goals:** {goals_scored}  |  **Conversion:** {goal_conversion}%")
-        #st.write(f"**xG:** {xg_total} | **xG/Shot:** {xg_per_shot}  | **Transition xG:** {transition_xg} | **Set Piece xG:** {sp_xg}")
-        st.write("🟢 Goal | 🟡 Saved | 🔴 Off Target/Blocked")
-        #st.write(f"**Transition xG:** {transition_xg} | **Set Piece xG:** {sp_xg}")
-
-        # Create shot map
-        pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
-                    half=True, pad_top=6, corner_arcs=True,)
-        
-        fig, ax = pitch.draw(figsize=(8,12))
-        
-        shots = events[events['type'] == 'Shot']
-        for _, row in shots.iterrows():
-            x = row['x']
-            y = row['y']
-            outcome = row['shot_outcome']
-            xg = row['shot_statsbomb_xg']
-
-            color = 'red' 
-            if outcome == 'Goal': color = 'green'
-            elif outcome == 'Saved': color = 'yellow'
-            elif outcome == 'Saved to Post': color = 'yellow'
+        if selected_card == 'Shots':
+            st.header("Shots")
             
-            pitch.scatter(x, y, ax=ax, color=color, marker='.', s=min(xg*2050, 500))
+            shots = events[(events['type'] == 'Shot') & (events['shot_type'] != 'Penalty')]
+            goals_scored = len(events[events['shot_outcome'] == 'Goal'])
+            xg_total = round(np.nansum(events['shot_statsbomb_xg']),2)
+            shots_taken = len(shots)
+            xg_per_shot = round(safe_div(xg_total, shots_taken),2)
+            goal_conversion = int(safe_div(goals_scored, shots_taken) * 100)
+            pens_taken = len(events[(events['shot_type'] == 'Penalty')])
+            pens_scored = len(events[(events['shot_outcome'] == 'Goal') & (events['shot_type'] == 'Penalty')])
 
-        
+            transition_xg = round(np.nansum(events[(events['pressure_in_prev_15s'] == True) | (events['counter_shot'] == True)]['shot_statsbomb_xg']),2)
+            sp_xg = round(np.nansum(events[(events['shot_from_corner'] == True) | (events['shot_from_fk'] == True)]['shot_statsbomb_xg']),2)
 
-        st.pyplot(fig)
-        plt.close(fig)
+            # Display stats
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Goals", goals_scored)
+                st.metric("xG", xg_total)
+            with col2:
+                st.metric("Shots", shots_taken)
+                st.metric("xG/Shot", xg_per_shot)
+            with col3:
+                st.metric("Conversion", f"{goal_conversion}%")
+                st.metric("Transition xG | Set Piece xG", f"{transition_xg}  |  {sp_xg}")
 
-    elif selected_card == 'Key Passes':
-        st.header("Key Passes")
-        
-        kps = events[(events['type'] == 'Pass') & ((events['pass_shot_assist'] == True) | (events['pass_goal_assist'] == True))]
-        assists = len(events[events['pass_goal_assist'] == True])
-        xa_total = round(np.nansum(events['xA']),2)
-        kps_num = len(kps)
-        big_chances_created = len(events[events['xA'] > 0.1])
-        sp_kps = len(events[(events['pass_type'].isin(['Free Kick', 'Corner'])) & ((events['pass_shot_assist'] == True) | (events['pass_goal_assist'] == True))])
-        cross_att = len(events[events['pass_cross'] == True])
-        cross_succ = len(events[(events['completed_pass'] == True) & (events['pass_cross'] == True)])
-        cross_shot_assists = len(events[((events['pass_shot_assist'] == True)  | (events['pass_goal_assist'] == True)) & (events['pass_cross'] == True)])
+            #st.write(f"**Shots:** {shots_taken}  |  **Goals:** {goals_scored}  |  **Conversion:** {goal_conversion}%")
+            #st.write(f"**xG:** {xg_total} | **xG/Shot:** {xg_per_shot}  | **Transition xG:** {transition_xg} | **Set Piece xG:** {sp_xg}")
+            st.write("🟢 Goal | 🟡 Saved | 🔴 Off Target/Blocked")
+            #st.write(f"**Transition xG:** {transition_xg} | **Set Piece xG:** {sp_xg}")
 
-        # Display stats
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Assists", assists)
-            st.metric("Big Chances", big_chances_created)
-        with col2:
-            st.metric("xA", xa_total)
-            st.metric("Key Passes", kps_num)
-        with col3:
-            st.metric("Crosses", f"{cross_succ}/{cross_att}")
-            st.metric("Cross Shot Assists", cross_shot_assists)
-
-        # Create key passes map
-        pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
-                    half=True, pad_top=6, corner_arcs=True,)
-        
-        fig, ax = pitch.draw(figsize=(8,12))
-        
-        for _, row in kps.iterrows():
-            x1 = row['x']
-            y1 = row['y']
-            x2 = row['pass_end_x']
-            y2 = row['pass_end_y']
-            outcome = row['pass_goal_assist']
-
-            color = 'green' if outcome == True else 'orange'
+            # Create shot map
+            pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                        half=True, pad_top=6, corner_arcs=True,)
             
-            pitch.scatter(x1, y1, ax=ax, color='white', marker='.', s=80)
-            pitch.scatter(x2, y2, ax=ax, color=color, marker='.', s=250)
-            pitch.lines(linewidth=3, xstart=x1, ystart=y1, xend=x2, yend=y2, comet=True, ax=ax, color=color)
+            fig, ax = pitch.draw(figsize=(8,12))
+            
+            shots = events[events['type'] == 'Shot']
+            for _, row in shots.iterrows():
+                x = row['x']
+                y = row['y']
+                outcome = row['shot_outcome']
+                xg = row['shot_statsbomb_xg']
 
-        st.pyplot(fig)
-        plt.close(fig)
-
-    elif selected_card == 'Ball Carrying':
-        st.header("1v1 Dribbling & Carrying")
-        
-        take_on_att = len(events[(events['type'] == 'Dribble')])
-        take_on_succ = len(events[(events['type'] == 'Dribble') & (events['dribble_outcome'] == 'Complete')])
-        box_take_on_att = len(events[(events['type'] == 'Dribble') & (events['x'] > 102) & (events['y'] > 17) & (events['y'] < 62)])
-        box_take_on_succ = len(events[(events['type'] == 'Dribble') & (events['dribble_outcome'] == 'Complete') & (events['x'] > 102) & (events['y'] > 17) & (events['y'] < 62)])
-        dribble_succ = int(safe_div(take_on_succ, take_on_att) * 100)
-        box_dribble_succ = int(safe_div(box_take_on_succ, box_take_on_att) * 100)
-        prog_carries = len(events[events['is_progressive_carry'] == True])
-        carries_into_box = len(events[(events['type'] == 'Carry') & (events['is_box_entry'] == True)])
-
-        # Display stats
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Take Ons", f"{take_on_succ}/{take_on_att} ({dribble_succ}%)")
-            st.metric("Progressive Carries", prog_carries)
-        with col2:
-            st.metric("Inside Box", f"{box_take_on_succ}/{box_take_on_att}")
-            st.metric("Box Entries", carries_into_box)
-
-        # Create carrying map
-        dribbles = events[(events['type'].isin(['Carry', 'Dribble']))]
-        pitch = Pitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
-                    pad_top=6, corner_arcs=True,)
-        
-        fig, ax = pitch.draw(figsize=(8,12))
-        
-        for _, row in dribbles.iterrows():
-            if row['is_progressive_carry'] == True:
-                x1 = row['x']
-                y1 = row['y']
-                x2 = row['carry_end_x']
-                y2 = row['carry_end_y']
+                color = 'red' 
+                if outcome == 'Goal': color = 'green'
+                elif outcome == 'Saved': color = 'yellow'
+                elif outcome == 'Saved to Post': color = 'yellow'
                 
-                pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='orange')
+                pitch.scatter(x, y, ax=ax, color=color, marker='.', s=min(xg*2050, 500))
 
-            if row['type'] == 'Dribble':
-                x1 = row['x']
-                y1 = row['y']
-                color = 'green' if row['dribble_outcome'] == 'Complete' else 'red'
-                pitch.scatter(x1, y1, ax=ax, color=color, marker='.', s=250)
+            
 
-        st.pyplot(fig)
-        plt.close(fig)
+            st.pyplot(fig)
+            plt.close(fig)
 
-    elif selected_card == 'Progressive Actions':
-        st.header("Progressive Passes & Carries")
-        
-        prog_actions = events[(events['is_progressive'] == True) | (events['is_progressive_carry'] == True)]
-        succ_prog_passes = len(events[(events['type'] == 'Pass') & (events['is_progressive'] == True) & (events['completed_pass'] == True)])
-        att_prog_passes = len(events[(events['type'] == 'Pass') & (events['is_progressive'] == True)])
-        prog_carries = len(events[(events['type'] == 'Carry') & (events['is_progressive_carry'] == True)])
-        prog_pass_rate = int(safe_div(succ_prog_passes, att_prog_passes) * 100)
-        total_actions = len(events[events['type'].isin(['Pass', 'Carry'])])
-        pct_prog = int(safe_div(len(prog_actions), total_actions) * 100)
+        elif selected_card == 'Key Passes':
+            st.header("Key Passes")
+            
+            kps = events[(events['type'] == 'Pass') & ((events['pass_shot_assist'] == True) | (events['pass_goal_assist'] == True))]
+            assists = len(events[events['pass_goal_assist'] == True])
+            xa_total = round(np.nansum(events['xA']),2)
+            kps_num = len(kps)
+            big_chances_created = len(events[events['xA'] > 0.1])
+            sp_kps = len(events[(events['pass_type'].isin(['Free Kick', 'Corner'])) & ((events['pass_shot_assist'] == True) | (events['pass_goal_assist'] == True))])
+            cross_att = len(events[events['pass_cross'] == True])
+            cross_succ = len(events[(events['completed_pass'] == True) & (events['pass_cross'] == True)])
+            cross_shot_assists = len(events[((events['pass_shot_assist'] == True)  | (events['pass_goal_assist'] == True)) & (events['pass_cross'] == True)])
 
-        # Display stats
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Progressive Passes", f"{succ_prog_passes}/{att_prog_passes} ({prog_pass_rate}%)")
-        with col2:
-            st.metric("Progressive Carries", prog_carries)
-        
-        with col3:
-            st.metric("% of Actions Progressive", f"{pct_prog}%")
+            # Display stats
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Assists", assists)
+                st.metric("Big Chances", big_chances_created)
+            with col2:
+                st.metric("xA", xa_total)
+                st.metric("Key Passes", kps_num)
+            with col3:
+                st.metric("Crosses", f"{cross_succ}/{cross_att}")
+                st.metric("Cross Shot Assists", cross_shot_assists)
 
-        st.write("🟠 Progressive Passes | 🟣 Progressive Carries")
-
-        # Create progressive actions map
-        pitch = Pitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
-                    pad_top=6, corner_arcs=True,)
-        
-        fig, ax = pitch.draw(figsize=(8,12))
-        
-        for _, row in prog_actions.iterrows():
-            if row['type'] == 'Carry':
-                x1 = row['x']
-                y1 = row['y']
-                x2 = row['carry_end_x']
-                y2 = row['carry_end_y']
-                
-                pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='magenta')
-
-            if row['type'] == 'Pass' and row['completed_pass'] == True:
+            # Create key passes map
+            pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                        half=True, pad_top=6, corner_arcs=True,)
+            
+            fig, ax = pitch.draw(figsize=(8,12))
+            
+            for _, row in kps.iterrows():
                 x1 = row['x']
                 y1 = row['y']
                 x2 = row['pass_end_x']
                 y2 = row['pass_end_y']
+                outcome = row['pass_goal_assist']
+
+                color = 'green' if outcome == True else 'orange'
                 
-                pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='orange')
+                pitch.scatter(x1, y1, ax=ax, color='white', marker='.', s=80)
+                pitch.scatter(x2, y2, ax=ax, color=color, marker='.', s=250)
+                pitch.lines(linewidth=3, xstart=x1, ystart=y1, xend=x2, yend=y2, comet=True, ax=ax, color=color)
 
-        st.pyplot(fig)
-        plt.close(fig)
+            st.pyplot(fig)
+            plt.close(fig)
 
-    elif selected_card == 'Touches':
-        st.header("Touches")
-        
-        touches_p90 = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']))]) / (player_mins/90),1)
-        touches_att_third_p90 = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']) & (events['x'] > 80))]) / (player_mins/90),1)
-        touches_box = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']) & (events['x'] > 102) & (events['y'] < 62) & (events['y'] > 17))]) / (player_mins/90),1)
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Touches p90", touches_p90)
-        with col2:
-            st.metric("Att. 1/3 Touches p90", touches_att_third_p90)
-        with col3:
-            st.metric("Box Touches p90", touches_box)
-
-        df_touches = events.loc[events.type.isin(['Pass', 'Ball Receipt*', 'Shot']), ['x', 'y']]
-        flamingo_cmap = LinearSegmentedColormap.from_list("Flamingo - 10 colors", ['#e3aca7', '#c03a1d'], N=10)
-        
-        pitch = Pitch(line_color='white', line_zorder=2, pitch_color='#200020')
-        fig, ax = pitch.draw(figsize=(12, 8))
-        hexmap = pitch.hexbin(df_touches.x, df_touches.y, ax=ax, edgecolors='#f4f4f4',
-                            gridsize=(12, 6), cmap=flamingo_cmap, mincnt=3)
-
-        st.pyplot(fig)
-        plt.close(fig)
-
-    elif selected_card == 'Pressures':
-        st.header("Pressures")
-
-        pressures_p90 = round(len(events[(events['type'] == 'Pressure')]) / (player_mins/90),1)
-        att_third_pressures = round(len(events[(events['type'] == 'Pressure') & (events['x'] > 80)]) / (player_mins/90),1)
-        pressures_to_shot = round(len(events[(events['type'] == 'Pressure') & (events['pressure_leading_to_shot'] == True)]) / (player_mins/90),1)
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Pressures p90", pressures_p90)
+        elif selected_card == 'Ball Carrying':
+            st.header("1v1 Dribbling & Carrying")
             
-        with col2:
-            st.metric("Att. 1/3 Pressures p90", att_third_pressures)
+            take_on_att = len(events[(events['type'] == 'Dribble')])
+            take_on_succ = len(events[(events['type'] == 'Dribble') & (events['dribble_outcome'] == 'Complete')])
+            box_take_on_att = len(events[(events['type'] == 'Dribble') & (events['x'] > 102) & (events['y'] > 17) & (events['y'] < 62)])
+            box_take_on_succ = len(events[(events['type'] == 'Dribble') & (events['dribble_outcome'] == 'Complete') & (events['x'] > 102) & (events['y'] > 17) & (events['y'] < 62)])
+            dribble_succ = int(safe_div(take_on_succ, take_on_att) * 100)
+            box_dribble_succ = int(safe_div(box_take_on_succ, box_take_on_att) * 100)
+            prog_carries = len(events[events['is_progressive_carry'] == True])
+            carries_into_box = len(events[(events['type'] == 'Carry') & (events['is_box_entry'] == True)])
 
-        with col3:
-            st.metric("Pressures Leading to Shot p90", pressures_to_shot)
+            # Display stats
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Take Ons", f"{take_on_succ}/{take_on_att} ({dribble_succ}%)")
+                st.metric("Progressive Carries", prog_carries)
+            with col2:
+                st.metric("Inside Box", f"{box_take_on_succ}/{box_take_on_att}")
+                st.metric("Box Entries", carries_into_box)
+
+            # Create carrying map
+            dribbles = events[(events['type'].isin(['Carry', 'Dribble']))]
+            pitch = Pitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                        pad_top=6, corner_arcs=True,)
+            
+            fig, ax = pitch.draw(figsize=(8,12))
+            
+            for _, row in dribbles.iterrows():
+                if row['is_progressive_carry'] == True:
+                    x1 = row['x']
+                    y1 = row['y']
+                    x2 = row['carry_end_x']
+                    y2 = row['carry_end_y']
+                    
+                    pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='orange')
+
+                if row['type'] == 'Dribble':
+                    x1 = row['x']
+                    y1 = row['y']
+                    color = 'green' if row['dribble_outcome'] == 'Complete' else 'red'
+                    pitch.scatter(x1, y1, ax=ax, color=color, marker='.', s=250)
+
+            st.pyplot(fig)
+            plt.close(fig)
+
+        elif selected_card == 'Progressive Actions':
+            st.header("Progressive Passes & Carries")
+            
+            prog_actions = events[(events['is_progressive'] == True) | (events['is_progressive_carry'] == True)]
+            succ_prog_passes = len(events[(events['type'] == 'Pass') & (events['is_progressive'] == True) & (events['completed_pass'] == True)])
+            att_prog_passes = len(events[(events['type'] == 'Pass') & (events['is_progressive'] == True)])
+            prog_carries = len(events[(events['type'] == 'Carry') & (events['is_progressive_carry'] == True)])
+            prog_pass_rate = int(safe_div(succ_prog_passes, att_prog_passes) * 100)
+            total_actions = len(events[events['type'].isin(['Pass', 'Carry'])])
+            pct_prog = int(safe_div(len(prog_actions), total_actions) * 100)
+
+            # Display stats
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Progressive Passes", f"{succ_prog_passes}/{att_prog_passes} ({prog_pass_rate}%)")
+            with col2:
+                st.metric("Progressive Carries", prog_carries)
+            
+            with col3:
+                st.metric("% of Actions Progressive", f"{pct_prog}%")
+
+            st.write("🟠 Progressive Passes | 🟣 Progressive Carries")
+
+            # Create progressive actions map
+            pitch = Pitch(pitch_type='statsbomb', pitch_color='#200020', line_color='#c7d5cc',
+                        pad_top=6, corner_arcs=True,)
+            
+            fig, ax = pitch.draw(figsize=(8,12))
+            
+            for _, row in prog_actions.iterrows():
+                if row['type'] == 'Carry':
+                    x1 = row['x']
+                    y1 = row['y']
+                    x2 = row['carry_end_x']
+                    y2 = row['carry_end_y']
+                    
+                    pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='magenta')
+
+                if row['type'] == 'Pass' and row['completed_pass'] == True:
+                    x1 = row['x']
+                    y1 = row['y']
+                    x2 = row['pass_end_x']
+                    y2 = row['pass_end_y']
+                    
+                    pitch.lines(transparent=True, linewidth=2, comet=True, xstart=x1, ystart=y1, xend=x2, yend=y2, ax=ax, color='orange')
+
+            st.pyplot(fig)
+            plt.close(fig)
+
+        elif selected_card == 'Touches':
+            st.header("Touches")
+            
+            touches_p90 = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']))]) / (player_mins/90),1)
+            touches_att_third_p90 = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']) & (events['x'] > 80))]) / (player_mins/90),1)
+            touches_box = round(len(events[(events['type'].isin(['Pass', 'Ball Receipt*', 'Shot']) & (events['x'] > 102) & (events['y'] < 62) & (events['y'] > 17))]) / (player_mins/90),1)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Touches p90", touches_p90)
+            with col2:
+                st.metric("Att. 1/3 Touches p90", touches_att_third_p90)
+            with col3:
+                st.metric("Box Touches p90", touches_box)
+
+            df_touches = events.loc[events.type.isin(['Pass', 'Ball Receipt*', 'Shot']), ['x', 'y']]
+            flamingo_cmap = LinearSegmentedColormap.from_list("Flamingo - 10 colors", ['#e3aca7', '#c03a1d'], N=10)
+            
+            pitch = Pitch(line_color='white', line_zorder=2, pitch_color='#200020')
+            fig, ax = pitch.draw(figsize=(12, 8))
+            hexmap = pitch.hexbin(df_touches.x, df_touches.y, ax=ax, edgecolors='#f4f4f4',
+                                gridsize=(12, 6), cmap=flamingo_cmap, mincnt=3)
+
+            st.pyplot(fig)
+            plt.close(fig)
+
+        elif selected_card == 'Pressures':
+            st.header("Pressures")
+
+            pressures_p90 = round(len(events[(events['type'] == 'Pressure')]) / (player_mins/90),1)
+            att_third_pressures = round(len(events[(events['type'] == 'Pressure') & (events['x'] > 80)]) / (player_mins/90),1)
+            pressures_to_shot = round(len(events[(events['type'] == 'Pressure') & (events['pressure_leading_to_shot'] == True)]) / (player_mins/90),1)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Pressures p90", pressures_p90)
+                
+            with col2:
+                st.metric("Att. 1/3 Pressures p90", att_third_pressures)
+
+            with col3:
+                st.metric("Pressures Leading to Shot p90", pressures_to_shot)
+            
+
+            df_touches = events.loc[events.type.isin(['Pressure']), ['x', 'y']]
+            flamingo_cmap = LinearSegmentedColormap.from_list("Flamingo - 10 colors", ['#e3aca7', '#c03a1d'], N=10)
+            
+            pitch = Pitch(line_color='white', line_zorder=2, pitch_color='#200020')
+            fig, ax = pitch.draw(figsize=(12, 8))
+            hexmap = pitch.hexbin(df_touches.x, df_touches.y, ax=ax, edgecolors='#f4f4f4',
+                                gridsize=(12, 6), cmap=flamingo_cmap, mincnt=3)
+
+            st.pyplot(fig)
+            plt.close(fig)
+                                    
+                                    
         
-
-        df_touches = events.loc[events.type.isin(['Pressure']), ['x', 'y']]
-        flamingo_cmap = LinearSegmentedColormap.from_list("Flamingo - 10 colors", ['#e3aca7', '#c03a1d'], N=10)
-        
-        pitch = Pitch(line_color='white', line_zorder=2, pitch_color='#200020')
-        fig, ax = pitch.draw(figsize=(12, 8))
-        hexmap = pitch.hexbin(df_touches.x, df_touches.y, ax=ax, edgecolors='#f4f4f4',
-                            gridsize=(12, 6), cmap=flamingo_cmap, mincnt=3)
-
-        st.pyplot(fig)
-        plt.close(fig)
-                                
-                                
-    
 
 
     st.title("Match Reports")
