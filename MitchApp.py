@@ -616,7 +616,7 @@ def display_player_page(player_name, df):
                         gridwidth=1,
                         linecolor='white',
                         linewidth=2
-                    )
+                    ) 
                 ),
                 showlegend=False,
                 paper_bgcolor='#200020',
