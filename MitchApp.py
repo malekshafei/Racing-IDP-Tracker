@@ -4,7 +4,7 @@ import numpy as np
 import io
 from datetime import datetime, date, timedelta
 import plotly.express as px
-import plotly.graph_objects as go
+import plotly.graph_objects as go 
 import calendar
 import os
 import requests
