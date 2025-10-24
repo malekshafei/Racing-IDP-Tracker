@@ -13,8 +13,14 @@ import json
 from io import BytesIO
 import warnings
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
+import sys
+try:
+    import imghdr
+except ModuleNotFoundError:
+        # Workaround for Python 3.13
+    import imghdr_compat as imghdr
+    sys.modules['imghdr'] = imghdr
 
-# Set page config
 st.set_page_config(
     page_title="Racing IDP Tracker", 
     #page_icon="⚽",
