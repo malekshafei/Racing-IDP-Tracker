@@ -1,7 +1,7 @@
 matplotlib
 Pillow
 openpyxl
-streamlit
+streamlit>=1.35.0
 pandas
 numpy
 plotly
