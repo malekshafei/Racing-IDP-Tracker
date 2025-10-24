@@ -14,12 +14,12 @@ from io import BytesIO
 import warnings
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 import sys
-try:
-    import imghdr
-except ModuleNotFoundError:
-        # Workaround for Python 3.13
-    import imghdr_compat as imghdr
-    sys.modules['imghdr'] = imghdr
+# try:
+#     import imghdr
+# except ModuleNotFoundError:
+#         # Workaround for Python 3.13
+#     import imghdr_compat as imghdr
+#     sys.modules['imghdr'] = imghdr
 
 st.set_page_config(
     page_title="Racing IDP Tracker", 
